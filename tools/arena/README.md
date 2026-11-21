@@ -43,6 +43,23 @@ python -B -m tools.arena.overview
 `overview` 复放三个赛段、核对官方裁判判定与记录，并生成 `results/overview.md`。
 用 `python -B -m tools.arena.report official` 可单独生成一个赛段的战报。
 
+## 离线统计看板
+
+在仓库根目录运行以下命令。看板读取已有的 JSONL 与 CSV，适用于单个赛段或完整联赛。
+
+```powershell
+python -B -m tools.arena.dashboard
+```
+
+双击 `tools/arena/results/dashboard.html` 即可离线打开，也可把这个文件单独发给队友。
+用页顶标签或总览卡片切换赛段。点击「打印视图」可打印当前赛段或另存为 PDF。
+
+总览汇总已加载赛段的对局、终局与稳定性，并比较 Team19 三代得分率。
+循环赛交手热力图按得分率着色，和棋贡献 1 分。强敌赛按对手展示新版的换边结果。
+
+可用 `--results-dir` 指定赛果目录，用 `--output` 指定生成位置。
+`overview` 在输出原有战报后刷新看板，可用 `--no-dashboard` 跳过刷新。
+
 ## 回看棋谱
 
 从对应赛段的 `results/<赛段>/replays/` 选择 `.json`，例如

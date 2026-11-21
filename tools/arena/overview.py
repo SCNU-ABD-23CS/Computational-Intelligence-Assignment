@@ -7,6 +7,7 @@ from io import StringIO
 from math import isclose, isfinite
 from types import SimpleNamespace
 
+from .dashboard import write_dashboard
 from .openings import move_event, start
 from .report import FORFEITS, load, points, tables, write_report
 from .runner import RESULTS, SCHEMA, _fingerprint, _reason, fixture_for, select_bosses
@@ -152,6 +153,7 @@ def write_overview(completed):
 def main():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=STAGES)
+    parser.add_argument("--no-dashboard", action="store_true", help="skip the HTML dashboard refresh")
     args = parser.parse_args()
     completed = {}
     for stage in (args.stage,) if args.stage else STAGES:
@@ -161,6 +163,9 @@ def main():
         print(f"{stage} | {len(rows)} games, {plies} plies verified", flush=True)
     if args.stage is None:
         print(write_overview(completed))
+    if not args.no_dashboard:
+        path, _ = write_dashboard(RESULTS)
+        print(path)
 
 
 if __name__ == "__main__":
