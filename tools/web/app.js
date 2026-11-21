@@ -230,6 +230,9 @@ function renderSearch(parent, report) {
   let stop = report.stop;
   if (report.interruptedDepth != null) {
     stop = `D${report.interruptedDepth} 触及单步搜索截止时间，采用已完成的结果。`;
+  } else if (depths.length && depths.at(-1).result.terminal_plies != null
+      && depths.at(-1).result.score === (report.side === "A" ? 100000 : -100000)) {
+    stop = `已证实能在 ${depths.at(-1).result.terminal_plies} 手内获胜，提前结束搜索。`;
   } else if (depths.length && !depths.at(-1).evaluated_horizon) {
     stop = "已在搜索范围内确定结果。";
   } else if (!depths.length) {

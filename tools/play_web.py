@@ -112,6 +112,7 @@ class PracticeSession:
             "allocation": trace.allocation,
             "depths": [asdict(record) for record in trace.depths],
             "interruptedDepth": trace.interrupted_depth,
+            "interruptedNodes": trace.interrupted_nodes,
             "stop": trace.stop_reason(),
             "fallback": stats.fallback,
             "error": trace.error,

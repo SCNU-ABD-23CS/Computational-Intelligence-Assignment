@@ -87,12 +87,14 @@ class DepthRecord:
 class SearchTrace:
     depths: list[DepthRecord] = field(default_factory=list)
     interrupted_depth: int | None = None
+    interrupted_nodes: int | None = None
     allocation: float | None = None
     player_start: float | None = None
     history: set[int] | None = None
     returned_move: Move | None = None
     called: bool = False
     error: str | None = None
+    is_attacker: bool | None = None
 
     @contextmanager
     def observe(self, player: Player):
@@ -108,6 +110,7 @@ class SearchTrace:
 
         def record_choice(board, is_attacker, deadline, game_history, weights=None):
             self.called = True
+            self.is_attacker = is_attacker
             self.history = game_history
             move = choose(board, is_attacker, deadline, game_history, weights)
             self.returned_move = move_pair(move)
@@ -117,8 +120,9 @@ class SearchTrace:
             started = time.perf_counter()
             try:
                 result, evaluated = search_depth(board, is_attacker, depth, *args, **kwargs)
-            except search.SearchTimeout:
+            except search.SearchTimeout as error:
                 self.interrupted_depth = depth
+                self.interrupted_nodes = error.nodes_visited
                 raise
             self.depths.append(DepthRecord(depth, result, time.perf_counter() - started, evaluated))
             return result, evaluated
@@ -140,6 +144,9 @@ class SearchTrace:
         if not self.depths:
             return "Stopped before D1 completed"
         last = self.depths[-1]
+        winning_score = search.WIN_SCORE if self.is_attacker else -search.WIN_SCORE
+        if last.result.terminal_plies is not None and last.result.score == winning_score:
+            return f"Proven win in {last.result.terminal_plies} plies"
         if not last.evaluated_horizon:
             return "Proven score (no heuristic leaves)"
         if last.depth == search._MAX_ITERATIVE_DEPTH:

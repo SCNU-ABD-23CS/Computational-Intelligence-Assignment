@@ -162,6 +162,37 @@ class PlayerTests(unittest.TestCase):
         self.assertEqual(self.player._apply_move.call_count, 3)
         self.assertTrue(self.referee.make_move(True, move))
 
+    def test_small_but_usable_clock_still_calls_search(self):
+        self.apply_nonterminal(True, [[0, 3], [0, 2]])
+        self.apply_nonterminal(False, [[2, 4], [2, 3]])
+        self.player._last_board = self.referee.board
+        self.player._last_is_attacker = True
+        self.player.remaining = 0.1398
+        self.player.moves_played = 60
+        move = [[0, 2], [1, 2]]
+
+        def search_with_clock(board, is_attacker, deadline, history, weights):
+            self.assertTrue(is_attacker)
+            self.assertGreater(deadline, self.clock.now)
+            self.assertLess(deadline, self.clock.now + 0.02)
+            self.assertIn(referee_hash(board, is_attacker), history)
+            return move
+
+        self.player._choose_best_move = Mock(side_effect=search_with_clock)
+        self.assertEqual(self.player.play_attacker(self.referee.board), move)
+        self.player._choose_best_move.assert_called_once()
+        self.assertTrue(self.referee.make_move(True, move))
+
+    def test_long_endgame_keeps_a_share_for_future_turns(self):
+        board = [["."] * 9 for _ in range(9)]
+        board[4][4] = "K"
+        board[0][4] = "A"
+        board[8][4] = "A"
+        self.player.remaining = 5.0
+        for moves_played in (20, 60, 120):
+            self.player.moves_played = moves_played
+            self.assertAlmostEqual(self.player._step_budget(board), (5.0 - 0.05) / 12)
+
     def test_without_teammate_modules_finishes_a_game(self):
         output = StringIO()
         missing = {"Team19_engine": None, "Team19_eval": None, "Team19_search": None}

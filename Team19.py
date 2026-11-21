@@ -41,15 +41,13 @@ _INITIAL_BOARD = (
 _DEFAULT_TIME_BUDGET = 60.0
 # Never handed to the search; covers building and returning the move.
 _RETURN_RESERVE = 0.05
-# A share below this is not worth a search at all.
-_MIN_THINK_TIME = 0.02
-# A single move may never take more than this share of what is left, so the
-# budget is drawn down geometrically and can never be spent by one decision.
-_MAX_STEP_FRACTION = 0.20
-# Roughly two own moves per piece left on the board; only used to estimate how
-# many shares are still to be handed out.
-_MOVES_PER_PIECE = 2.0
-_MIN_EXPECTED_MOVES = 16
+# Skip search very close to the bookkeeping reserve. Smaller allocated shares
+# are still useful when the game clock can afford them.
+_MIN_AVAILABLE_TIME = 0.02
+_SHORT_SEARCH_TIME = 0.008
+_MIN_MOVES_LEFT = 12
+_MOVES_PER_PIECE = 1.5
+_OPENING_MOVE_ALLOWANCE = 13
 
 Square = tuple[int, int]
 MovePair = tuple[Square, Square]
@@ -214,13 +212,15 @@ class Player:
         Actual time is charged afterwards, so unused allocation carries over.
         """
         available = self.remaining - _RETURN_RESERVE
-        if available <= _MIN_THINK_TIME:
+        if available <= _MIN_AVAILABLE_TIME:
             return 0.0
-        expected_moves = max(_MIN_EXPECTED_MOVES, int(_MOVES_PER_PIECE * _piece_count(board)))
-        moves_left = max(1, expected_moves - self.moves_played)
+        opening_allowance = max(0, _OPENING_MOVE_ALLOWANCE - self.moves_played)
+        moves_left = max(
+            _MIN_MOVES_LEFT, int(_MOVES_PER_PIECE * _piece_count(board)) + opening_allowance,
+        )
         fair_share = available / moves_left
-        step = min(max(fair_share, _MIN_THINK_TIME), available * _MAX_STEP_FRACTION)
-        return step if step >= _MIN_THINK_TIME else 0.0
+        short_search = min(_SHORT_SEARCH_TIME, available / _MIN_MOVES_LEFT)
+        return max(fair_share, short_search)
 
     # =================================================
     # Game history

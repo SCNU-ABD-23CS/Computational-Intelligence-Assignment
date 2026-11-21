@@ -22,6 +22,7 @@ an independent board and ``get_legal_moves`` returns fresh lists.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import random
 
 # ---------------------------------------------------------------------------
@@ -77,6 +78,15 @@ def _build_zobrist_table(size: int = SIZE) -> dict[tuple[int, int, int], int]:
 
 
 _ZOBRIST = _build_zobrist_table()
+_HASH_KEYS = tuple(
+    tuple(
+        {piece: (_ZOBRIST[(row * SIZE + col, code, 0)],
+                 _ZOBRIST[(row * SIZE + col, code, 1)])
+         for piece, code in _CODE_BY_CELL.items()}
+        for col in range(SIZE)
+    )
+    for row in range(SIZE)
+)
 
 
 def compute_hash(board: list[list[str]], is_attacker: bool) -> int:
@@ -145,6 +155,27 @@ def get_legal_moves(
     return moves
 
 
+def _has_legal_move(board: list[list[str]], is_attacker: bool) -> bool:
+    """Check the first landing on each ray without building a move list."""
+    width = len(board)
+    own = (ATTACKER,) if is_attacker else (DEFENDER, KING)
+    for row, cells in enumerate(board):
+        for col, piece in enumerate(cells):
+            if piece not in own:
+                continue
+            for dr, dc in _DIRECTIONS:
+                rr, cc = row + dr, col + dc
+                while 0 <= rr < width and 0 <= cc < width:
+                    cell = board[rr][cc]
+                    if cell == EMPTY:
+                        return True
+                    if cell != CASTLE:
+                        break
+                    rr += dr
+                    cc += dc
+    return False
+
+
 def _is_blocked(board: list[list[str]], r1: int, c1: int, r2: int, c2: int) -> bool:
     """Return whether a straight slide from (r1, c1) to (r2, c2) is blocked."""
     if r1 == r2:
@@ -166,7 +197,23 @@ def _is_blocked(board: list[list[str]], r1: int, c1: int, r2: int, c2: int) -> b
 # Capture resolution
 # ---------------------------------------------------------------------------
 
-def _resolve_captures(board: list[list[str]], row: int, col: int) -> None:
+def _capture_axes(width: int, row: int, col: int) -> tuple[tuple[int, int, int, int], ...]:
+    return tuple(
+        (row + dr, col + dc, row + 2 * dr, col + 2 * dc)
+        for dr, dc in _DIRECTIONS
+        if 0 <= row + 2 * dr < width and 0 <= col + 2 * dc < width
+    )
+
+
+_CAPTURE_AXES = tuple(
+    tuple(_capture_axes(SIZE, row, col) for col in range(SIZE))
+    for row in range(SIZE)
+)
+
+
+def _resolve_captures(
+    board: list[list[str]], row: int, col: int,
+) -> list[tuple[int, int, str]]:
     """Apply every capture caused by the piece that just landed on row/col.
 
     ``board`` is the freshly copied board and is updated in place, mirroring
@@ -174,77 +221,55 @@ def _resolve_captures(board: list[list[str]], row: int, col: int) -> None:
     examined, so the mover itself can never be captured on its own turn, and
     all captures of one move are resolved with the same rules.
     """
-    width = len(board)
     piece = board[row][col]
-    directions = _DIRECTIONS
+    width = len(board)
+    axes = _CAPTURE_AXES[row][col] if width == SIZE else _capture_axes(width, row, col)
+    captured: list[tuple[int, int, str]] = []
 
     if piece == ATTACKER:
-        for dr, dc in directions:
-            neighbour_row = row + dr
-            neighbour_col = col + dc
-            beyond_row = row + 2 * dr
-            beyond_col = col + 2 * dc
-            # A capture needs a hostile square two steps away, so moves near
-            # the board edge simply cannot capture in that direction.
-            if not (0 <= beyond_row < width and 0 <= beyond_col < width):
-                continue
-            neighbour = board[neighbour_row][neighbour_col]
-            beyond = board[beyond_row][beyond_col]
-
+        for nr, nc, br, bc in axes:
+            neighbour = board[nr][nc]
             if neighbour == DEFENDER:
+                beyond = board[br][bc]
                 if beyond == ATTACKER or beyond == CASTLE:
-                    board[neighbour_row][neighbour_col] = EMPTY
-                elif (
-                    beyond == KING
-                    and beyond_row == CASTLE_ROW
-                    and beyond_col == CASTLE_COL
-                ):
+                    board[nr][nc] = EMPTY
+                    captured.append((nr, nc, neighbour))
+                elif beyond == KING and (br, bc) == (CASTLE_ROW, CASTLE_COL):
                     # Exception: a defender beside the king in the castle can
                     # be taken once the castle is attacked from three sides.
-                    surrounded = 0
-                    for ddr, ddc in directions:
-                        if board[CASTLE_ROW + ddr][CASTLE_COL + ddc] == ATTACKER:
-                            surrounded += 1
-                            if surrounded == 3:
-                                board[neighbour_row][neighbour_col] = EMPTY
+                    if sum(board[br + dr][bc + dc] == ATTACKER for dr, dc in _DIRECTIONS) >= 3:
+                        board[nr][nc] = EMPTY
+                        captured.append((nr, nc, neighbour))
             elif neighbour == KING:
                 # The king in or directly beside the castle must be surrounded
                 # on all sides, where the empty castle counts as hostile.
-                beside_castle = (
-                    neighbour_row == CASTLE_ROW
-                    and CASTLE_COL - 1 <= neighbour_col <= CASTLE_COL + 1
-                ) or (
-                    neighbour_col == CASTLE_COL
-                    and CASTLE_ROW - 1 <= neighbour_row <= CASTLE_ROW + 1
-                )
-                if not beside_castle:
-                    if beyond == ATTACKER:
-                        board[neighbour_row][neighbour_col] = EMPTY
+                if abs(nr - CASTLE_ROW) + abs(nc - CASTLE_COL) <= 1:
+                    trapped = all(
+                        board[nr + dr][nc + dc] in (ATTACKER, CASTLE)
+                        for dr, dc in _DIRECTIONS
+                    )
                 else:
-                    surrounded = 0
-                    for ddr, ddc in directions:
-                        cell = board[neighbour_row + ddr][neighbour_col + ddc]
-                        if cell == ATTACKER or cell == CASTLE:
-                            surrounded += 1
-                    if surrounded == 4:
-                        board[neighbour_row][neighbour_col] = EMPTY
-        return
+                    trapped = board[br][bc] == ATTACKER
+                if trapped:
+                    board[nr][nc] = EMPTY
+                    captured.append((nr, nc, neighbour))
+        return captured
 
     # Defenders and the king capture attackers between two friendly squares,
     # where the empty castle also counts as friendly.
     if piece == DEFENDER or piece == KING:
-        for dr, dc in directions:
-            neighbour_row = row + dr
-            neighbour_col = col + dc
-            beyond_row = row + 2 * dr
-            beyond_col = col + 2 * dc
-            if not (0 <= beyond_row < width and 0 <= beyond_col < width):
-                continue
-            if board[neighbour_row][neighbour_col] != ATTACKER:
-                continue
-            beyond = board[beyond_row][beyond_col]
-            if beyond == DEFENDER or beyond == KING or beyond == CASTLE:
-                board[neighbour_row][neighbour_col] = EMPTY
+        for nr, nc, br, bc in axes:
+            if board[nr][nc] == ATTACKER and board[br][bc] in (DEFENDER, KING, CASTLE):
+                board[nr][nc] = EMPTY
+                captured.append((nr, nc, ATTACKER))
+    return captured
+
+
+def _slide(board: list[list[str]], r1: int, c1: int, r2: int, c2: int) -> list[list[str]]:
+    child = [row[:] for row in board]
+    child[r1][c1] = CASTLE if (r1, c1) == (CASTLE_ROW, CASTLE_COL) else EMPTY
+    child[r2][c2] = board[r1][c1]
+    return child
 
 
 # ---------------------------------------------------------------------------
@@ -291,15 +316,79 @@ def apply_move(
     if _is_blocked(board, r1, c1, r2, c2):
         raise ValueError("the path between the two squares is blocked")
 
-    new_board = [row[:] for row in board]
-    if r1 == CASTLE_ROW and c1 == CASTLE_COL:
-        # The king has left the castle; the square becomes empty but hostile.
-        new_board[r1][c1] = CASTLE
-    else:
-        new_board[r1][c1] = EMPTY
-    new_board[r2][c2] = piece
+    new_board = _slide(board, r1, c1, r2, c2)
     _resolve_captures(new_board, r2, c2)
     return new_board
+
+
+def _on_edge(row: int, col: int) -> bool:
+    return row == 0 or col == 0 or row == SIZE - 1 or col == SIZE - 1
+
+
+@dataclass(slots=True)
+class _SearchPosition:
+    """A search-only board with the features that can be updated from a move."""
+
+    board: list[list[str]]
+    attacker_hash: int
+    defender_hash: int
+    attackers: int
+    defenders: int
+    king: tuple[int, int] | None
+
+    def winner(self) -> str | None:
+        if self.king is None:
+            return WIN_ATTACKER
+        if self.attackers < 2 or _on_edge(*self.king):
+            return WIN_DEFENDER
+        return None
+
+
+def _search_position(board: list[list[str]]) -> _SearchPosition:
+    """Scan the root once for both official hashes and material."""
+    attacker_hash = defender_hash = attackers = defenders = 0
+    king = None
+    for row, cells in enumerate(board):
+        for col, piece in enumerate(cells):
+            keys = _HASH_KEYS[row][col].get(piece)
+            if keys is None:
+                continue
+            attacker_hash ^= keys[0]
+            defender_hash ^= keys[1]
+            if piece == ATTACKER:
+                attackers += 1
+            elif piece == DEFENDER:
+                defenders += 1
+            else:
+                king = (row, col)
+    return _SearchPosition(board, attacker_hash, defender_hash, attackers, defenders, king)
+
+
+def _apply_legal_move(
+    position: _SearchPosition, move: list[list[int]],
+) -> _SearchPosition:
+    """Apply a generated move, reusing the public capture rules and updating both hashes."""
+    (r1, c1), (r2, c2) = move
+    piece = position.board[r1][c1]
+    child = _slide(position.board, r1, c1, r2, c2)
+    captures = _resolve_captures(child, r2, c2)
+    start_a, start_d = _HASH_KEYS[r1][c1][piece]
+    end_a, end_d = _HASH_KEYS[r2][c2][piece]
+    attacker_hash = position.attacker_hash ^ start_a ^ end_a
+    defender_hash = position.defender_hash ^ start_d ^ end_d
+    attackers, defenders = position.attackers, position.defenders
+    king = (r2, c2) if piece == KING else position.king
+    for row, col, captured in captures:
+        captured_a, captured_d = _HASH_KEYS[row][col][captured]
+        attacker_hash ^= captured_a
+        defender_hash ^= captured_d
+        if captured == ATTACKER:
+            attackers -= 1
+        elif captured == DEFENDER:
+            defenders -= 1
+        else:
+            king = None
+    return _SearchPosition(child, attacker_hash, defender_hash, attackers, defenders, king)
 
 
 # ---------------------------------------------------------------------------

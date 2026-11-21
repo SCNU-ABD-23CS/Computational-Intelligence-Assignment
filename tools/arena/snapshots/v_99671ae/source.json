@@ -1,0 +1,9 @@
+{
+  "commit": "99671ae4dbe564992fff874ec8e1d89dbfffd8a0",
+  "original_sha256": {
+    "Team19.py": "24b01891098cf5004e1cfc08dc3f8cdc2064b47d0a8351987507f932b389d090",
+    "Team19_engine.py": "5e9945592974a46252799ab767bc8777aa2591e4528d24e64da5957c5a76f807",
+    "Team19_eval.py": "d852affb95fc4a6af2948d1e568fa725a90a89eb114365196ab30646d144253a",
+    "Team19_search.py": "8f7d617f3c818e8fa320ce3dbde25cb1bc22aac72e815b08f439049d93997764"
+  }
+}

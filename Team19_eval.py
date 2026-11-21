@@ -42,6 +42,22 @@ _DIRECTIONS = ((-1, 0), (1, 0), (0, -1), (0, 1))
 _MAX_WEIGHT = 10_000.0
 
 
+def _ray(row: int, column: int, dr: int, dc: int) -> tuple[tuple[int, int], ...]:
+    squares = []
+    row, column = row + dr, column + dc
+    while 0 <= row <= _BOARD_EDGE and 0 <= column <= _BOARD_EDGE:
+        squares.append((row, column))
+        row, column = row + dr, column + dc
+    return tuple(squares)
+
+
+_KING_RAYS = tuple(
+    tuple(tuple(_ray(row, column, dr, dc) for dr, dc in _DIRECTIONS)
+          for column in range(_BOARD_EDGE + 1))
+    for row in range(_BOARD_EDGE + 1)
+)
+
+
 def evaluate_board(board: Board, weights: list[float] | None = None) -> float:
     """Return a bounded, finite heuristic score for ``board``.
 
@@ -57,7 +73,11 @@ def evaluate_board(board: Board, weights: list[float] | None = None) -> float:
     """
     active_weights = normalize_weights(DEFAULT_WEIGHTS if weights is None else weights)
     features = _features(board)
-    return float(sum(weight * feature for weight, feature in zip(active_weights, features)))
+    return _weighted_score(active_weights, features)
+
+
+def _weighted_score(weights: Sequence[float], features: Sequence[float]) -> float:
+    return sum(weight * feature for weight, feature in zip(weights, features))
 
 
 def normalize_weights(weights: Sequence[object]) -> list[float]:
@@ -94,27 +114,30 @@ def normalize_weights(weights: Sequence[object]) -> list[float]:
 def _features(board: Board) -> tuple[float, float, float, float, float, float, float]:
     attackers = 0
     defenders = 0
-    perimeter_attackers = 0
     king: tuple[int, int] | None = None
 
     for row, cells in enumerate(board):
         for column, piece in enumerate(cells):
             if piece == "A":
-                attackers = min(16, attackers + 1)
-                if row in (0, _BOARD_EDGE) or column in (0, _BOARD_EDGE):
-                    perimeter_attackers = min(16, perimeter_attackers + 1)
+                attackers += 1
             elif piece == "D":
-                defenders = min(8, defenders + 1)
+                defenders += 1
             elif piece == "K" and king is None:
                 king = (row, column)
 
+    return _features_from_counts(board, attackers, defenders, king)
+
+
+def _features_from_counts(
+    board: Board, attackers: int, defenders: int, king: tuple[int, int] | None,
+) -> tuple[float, float, float, float, float, float, float]:
+    attackers = min(16, attackers)
+    defenders = min(8, defenders)
     material_balance = attackers / 16.0 - defenders / 8.0
     low_attacker_penalty = -max(0, 5 - attackers) / 5.0
-    escape_routes = -_escape_route_count(board, king) / 4.0
+    escape_routes, guard_cover, perimeter_blockade = _king_lines(board, king)
     edge_proximity = -_edge_proximity(king)
     capture_pressure = _capture_pressure(board, king)
-    guard_cover = -_adjacent_count(board, king, "D") / 4.0
-    perimeter_blockade = perimeter_attackers / 16.0
     return (
         material_balance,
         low_attacker_penalty,
@@ -126,29 +149,45 @@ def _features(board: Board) -> tuple[float, float, float, float, float, float, f
     )
 
 
-def _escape_route_count(board: Board, king: tuple[int, int] | None) -> int:
+def _king_lines(
+    board: Board, king: tuple[int, int] | None,
+) -> tuple[float, float, float]:
+    """Score escape rays, reachable landings, useful guards and attacker blockades."""
     if king is None:
-        return 0
+        return 0.0, 0.0, 0.0
     row, column = king
     if not (0 < row < _BOARD_EDGE and 0 < column < _BOARD_EDGE):
-        return 0
+        return 0.0, 0.0, 0.0
 
     routes = 0
-    for row_step, column_step in _DIRECTIONS:
-        next_row = row + row_step
-        next_column = column + column_step
-        while 0 <= next_row <= _BOARD_EDGE and 0 <= next_column <= _BOARD_EDGE:
-            square = _cell(board, next_row, next_column)
-            if square not in (".", "X"):
+    landings = 0
+    shields = 0
+    blockade = 0.0
+    for (dr, dc), ray in zip(_DIRECTIONS, _KING_RAYS[row][column]):
+        if board[row + dr][column + dc] == "D" and board[row - dr][column - dc] == "A":
+            shields += 1
+        blocked = False
+        for distance, (rr, cc) in enumerate(ray, 1):
+            square = board[rr][cc]
+            if square == ".":
+                if not blocked:
+                    landings += 1
+            elif square == "A":
+                # A reserve blocker behind a guard matters only if the guard moves.
+                blockade += (9 - distance) * (0.25 if blocked else 1.0)
+                blocked = True
                 break
-            if (
-                next_row in (0, _BOARD_EDGE) or next_column in (0, _BOARD_EDGE)
-            ) and square == ".":
-                routes += 1
-                break
-            next_row += row_step
-            next_column += column_step
-    return routes
+            elif square != "X":
+                blocked = True
+        if not blocked:
+            routes += 1
+    guard_cover = -0.55 * landings / 16
+    if shields:
+        # A guard negates capture pressure along an ordinary sandwich axis.
+        # Keep its credit below the default gain from an attacker closing in.
+        shield_weight = 0.45 if king == _CENTER or king in _CASTLE_ADJACENT else 0.18
+        guard_cover -= shield_weight * shields / 4
+    return -routes / 4.0, guard_cover, blockade / 32
 
 
 def _edge_proximity(king: tuple[int, int] | None) -> float:
