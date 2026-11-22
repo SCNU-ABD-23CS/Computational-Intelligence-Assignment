@@ -1,5 +1,6 @@
 """The submission's native rules, weights and search regressions."""
 
+from functools import wraps
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -110,7 +111,7 @@ class NativeSearchTests(unittest.TestCase):
         player._last_is_attacker = True
         player.moves_played = 100
         player.remaining = 0.06
-        self.assertEqual(player._step_budget(board), 0.0)
+        self.assertEqual(player._step_budget(board, native=True), 0.0)
         self.assertEqual(player.play_attacker(board), [[0, 1], [0, 4]])
         self.assertIsNone(player.last_error)
         self.assertEqual(player.last_search.depth, 1)
@@ -118,6 +119,40 @@ class NativeSearchTests(unittest.TestCase):
         self.assertIn(engine.compute_hash(board, True), player.history)
         after = engine.apply_move(board, [[0, 1], [0, 4]], True)
         self.assertIn(engine.compute_hash(after, False), player.history)
+
+    def test_long_game_reserves_referee_time_with_callback_overhead(self):
+        for budget in (10.0, 60.0):
+            with self.subTest(budget=budget), patch.object(Tablut, "TIME_BUDGET", budget):
+                player = Team19.Player()
+                clock = SimpleNamespace(now=0.0)
+                board = _escape_threat()
+                referee = Tablut.Tablut()
+                referee_remaining = budget
+
+                @wraps(player._native_choice)
+                def play_depth_one(position, side, deadline, history, weights):
+                    # Model using the reserved search share and at least the
+                    # cost of the mandatory native pass on every callback.
+                    clock.now += max(0.0004, deadline - clock.now)
+                    return player._native_choice(position, side, 0.0, history, weights)
+
+                player._choose_best_move = play_depth_one
+                with patch.object(Team19, "time", SimpleNamespace(perf_counter=lambda: clock.now)):
+                    for _ in range(520):
+                        if player.remaining < 0.5:
+                            self.assertLessEqual(player._step_budget(board, native=True), 0.008)
+                        started = clock.now
+                        reply = player.play_attacker(board)
+                        referee_remaining -= clock.now - started + 0.00015
+                        self.assertGreater(referee_remaining, 0.05)
+                        self.assertLess(player.remaining, referee_remaining)
+                        self.assertIsNone(player.last_error)
+                        self.assertEqual(player.last_search.depth, 1)
+                        self.assertFalse(player.last_search.fallback)
+                        referee.board = [row[:] for row in board]
+                        self.assertTrue(referee.make_move(True, reply))
+                self.assertEqual(player.moves_played, 520)
+                self.assertEqual(player.remaining, 0.0)
 
     def test_quiescence_searches_the_quiet_escape_block(self):
         flat, state = search._native_position(_escape_threat())
@@ -143,7 +178,7 @@ class NativeSearchTests(unittest.TestCase):
         played = np.array([stamp], dtype=np.uint64)
         score, move = search._native_visit(
             flat, True, *state, 2, 4, 1, -2 * search._MATE, 2 * search._MATE,
-            float("inf"), played, work, True,
+            float("inf"), played, work, True, 0, False,
         )
         self.assertEqual((score, move, work.counts[search._NODE_COUNT]), (0, -1, 1))
         self.bot.reset_game()
@@ -161,3 +196,43 @@ class NativeSearchTests(unittest.TestCase):
         self.assertEqual(move, [[7, 2], [8, 2]])
         self.assertEqual(engine.check_winner(engine.apply_move(board, move, False), True), "D")
         self.assertEqual(self.bot.last_search.score, -search.WIN_SCORE)
+
+    def test_attacker_avoids_a_cheap_repetition_but_draws_to_prevent_a_loss(self):
+        board = Tablut.Tablut().board
+        first = self.bot.choose(board, True, 0.0, set())
+        child = engine.apply_move(board, first, True)
+        self.assertNotEqual(self.bot.choose(board, True, 0.0, {engine.compute_hash(child, False)}),
+                            first)
+        self.assertGreater(self.bot.last_search.score, search._ATTACKER_REPETITION_SCORE)
+
+        board = _escape_threat()
+        block = [[0, 1], [0, 4]]
+        child = engine.apply_move(board, block, True)
+        self.assertEqual(self.bot.choose(board, True, 0.0, {engine.compute_hash(child, False)}),
+                         block)
+        self.assertEqual(self.bot.last_search.score, search._ATTACKER_REPETITION_SCORE)
+
+        # The experiment API continues to value the same official draw at zero.
+        result = search.search_fixed_depth(
+            board, True, 2, functions=search._load_functions(),
+            game_history={engine.compute_hash(child, False)},
+        )
+        self.assertEqual((result.move, result.score), (block, 0.0))
+
+    def test_siege_score_rewards_reaching_a_guard_flank(self):
+        board = [list(row) for row in (
+            ".........", ".........", "......A..", "....AADD.",
+            "....XAD..", "...AAAKDA", "....AAAA.", ".........", ".........",
+        )]
+        staged = engine.apply_move(board, [[5, 8], [4, 8]], True)
+
+        def score(position, siege):
+            flat, state = search._native_position(position)
+            self.bot.work.counts.fill(0)
+            return -self.bot._iteration(
+                flat, False, state, 0, 0, -2 * search._MATE, 2 * search._MATE,
+                float("inf"), np.empty(0, dtype=np.uint64), True, siege=siege,
+            )[0]
+
+        self.assertGreater(score(staged, True) - score(staged, False),
+                           score(board, True) - score(board, False))

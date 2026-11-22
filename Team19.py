@@ -39,8 +39,12 @@ _INITIAL_BOARD = (
 
 # The referee may shorten TIME_BUDGET when it tests all the bots.
 _DEFAULT_TIME_BUDGET = 60.0
-# Never handed to the search; covers building and returning the move.
+# Keep the compatibility search's original budgeting policy.
 _RETURN_RESERVE = 0.05
+# The compiled player always runs a bounded D1 pass, even below this reserve.
+_NATIVE_RETURN_RESERVE = 0.225
+_NATIVE_CALL_OVERHEAD = 0.00125
+_LOW_CLOCK = 0.5
 # Skip search very close to the bookkeeping reserve. Smaller allocated shares
 # are still useful when the game clock can afford them.
 _MIN_AVAILABLE_TIME = 0.02
@@ -157,8 +161,16 @@ class Player:
         started = time.perf_counter()
         self.last_search = None
         position = [list(row) for row in board]
+        native = False
         try:
-            return self._select_move(position, is_attacker, started)
+            search = self._choose_best_move
+            native = (
+                self._native is not None
+                and (search is self._native_choice
+                     or getattr(search, "__wrapped__", None) is self._native_choice)
+                and self._native.accepts(self.weights)
+            )
+            return self._select_move(position, is_attacker, started, search, native)
         except Exception as error:
             # Swallowing the error is what keeps the referee alive, but it must
             # stay observable: a silent fallback hides real bugs, so the last
@@ -173,12 +185,15 @@ class Player:
             self._last_is_attacker = is_attacker
             return move
         finally:
-            self.remaining = max(0.0, self.remaining - (time.perf_counter() - started))
+            elapsed = time.perf_counter() - started
+            # The referee's clock also includes work outside this callback.
+            overhead = _NATIVE_CALL_OVERHEAD if native else 0.0
+            self.remaining = max(0.0, self.remaining - elapsed - overhead)
 
     # =================================================
     # One decision
     def _select_move(
-        self, position: list[list[str]], is_attacker: bool, started: float,
+        self, position: list[list[str]], is_attacker: bool, started: float, search, native: bool,
     ) -> list[list[int]]:
         seed_initial_history = self._start_new_game_if_needed(position, is_attacker)
 
@@ -186,14 +201,8 @@ class Player:
         if not legal:
             raise ValueError("The referee must supply a board with a legal move")
         fallback = min(legal)
-        step_budget = self._step_budget(position)
+        step_budget = self._step_budget(position, native=native)
         deadline = started + step_budget
-        search = self._choose_best_move
-        native = (
-            self._native is not None
-            and (search is self._native_choice or getattr(search, "__wrapped__", None) is self._native_choice)
-            and self._native.accepts(self.weights)
-        )
         if native:
             bookkeeping_deadline = math.inf
         else:
@@ -234,21 +243,24 @@ class Player:
 
     # =================================================
     # Time budget
-    def _step_budget(self, board: list[list[str]]) -> float:
+    def _step_budget(self, board: list[list[str]], *, native: bool = False) -> float:
         """Share of the remaining game budget this move may spend.
 
         The share uses both the remaining time and the expected moves left.
         Actual time is charged afterwards, so unused allocation carries over.
         """
-        available = self.remaining - _RETURN_RESERVE
+        reserve = _NATIVE_RETURN_RESERVE + _NATIVE_CALL_OVERHEAD if native else _RETURN_RESERVE
+        available = self.remaining - reserve
         if available <= _MIN_AVAILABLE_TIME:
             return 0.0
+        short_search = min(_SHORT_SEARCH_TIME, available / _MIN_MOVES_LEFT)
+        if native and self.remaining < _LOW_CLOCK:
+            return short_search
         opening_allowance = max(0, _OPENING_MOVE_ALLOWANCE - self.moves_played)
         moves_left = max(
             _MIN_MOVES_LEFT, int(_MOVES_PER_PIECE * _piece_count(board)) + opening_allowance,
         )
         fair_share = available / moves_left
-        short_search = min(_SHORT_SEARCH_TIME, available / _MIN_MOVES_LEFT)
         return max(fair_share, short_search)
 
     # =================================================

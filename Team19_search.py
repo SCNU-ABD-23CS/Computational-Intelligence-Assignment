@@ -531,6 +531,8 @@ _MATE = int(WIN_SCORE)
 _Q_LIMIT = 4
 _NATIVE_PLY_SLOTS = _MAX_ITERATIVE_DEPTH + _Q_LIMIT + 2
 _NATIVE_TT_SIZE = 1 << 18
+_ATTACKER_REPETITION_SCORE = -3000
+_SIEGE_SCORE_THRESHOLD = 7500
 _NODE_COUNT, _CUTOFFS, _REDUCTIONS, _RESEARCHES, _STOPPED, _EVALUATIONS = range(6)
 
 
@@ -700,10 +702,65 @@ def _native_order(board, attacker, king, ply, normal, danger, hint, work):
 
 
 @_njit(inline="always")
-def _native_score(board, attacker, attackers, defenders, king, work):
+def _native_attacker_reaches(board, target):
+    for direction in range(4):
+        square = _NEAR[target, direction]
+        while square >= 0:
+            if board[square] == _A:
+                return True
+            if board[square] != 0 and board[square] != _X:
+                break
+            square = _NEAR[square, direction]
+    return False
+
+
+@_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+def _native_siege_pressure(board, king):
+    """Advance a siege by threatening guards and limiting their waiting moves."""
+    for direction in range(4):
+        square = _NEAR[king, direction]
+        while square >= 0 and board[square] == _X:
+            square = _NEAR[square, direction]
+        if square >= 0 and board[square] == 0:
+            return 0
+
+    pressure, squeeze = 0, 0
+    for guard in range(_AREA):
+        if board[guard] != _D:
+            continue
+        distance = _NATIVE_DISTANCE[king, guard]
+        if distance >= 3:
+            mobility = 0
+            for direction in range(4):
+                square = _NEAR[guard, direction]
+                while square >= 0:
+                    occupant = board[square]
+                    if occupant != 0 and occupant != _X:
+                        break
+                    mobility += occupant == 0
+                    square = _NEAR[square, direction]
+            squeeze += 40 * (16 - mobility)
+        best = 0
+        for direction in range(4):
+            anchor = _NEAR[guard, direction]
+            landing = _NEAR[guard, (direction + 2) % 4]
+            if anchor < 0 or landing < 0 or board[landing] != 0:
+                continue
+            if board[anchor] == _A or board[anchor] == _X:
+                setup = 240 if _native_attacker_reaches(board, landing) else 70
+                best = max(best, setup)
+        pressure += 2 * best if distance == 1 else best
+    return min(pressure, 1200) + min(squeeze, 1200)
+
+
+@_njit(inline="always")
+def _native_score(board, attacker, attackers, defenders, king, work, siege):
     work.counts[_EVALUATIONS] += 1
     value = _native_evaluate(board, attacker, attackers, defenders, king, work.weights,
                              work.queue, work.seen, _NEAR, _EDGE, work.piece_bonus)
+    if (siege and value >= _SIEGE_SCORE_THRESHOLD
+            and defenders <= 6 and attackers >= defenders + 4):
+        value += _native_siege_pressure(board, king)
     return value if attacker else -value
 
 
@@ -711,7 +768,8 @@ def _native_score(board, attacker, attackers, defenders, king, work):
 # returns scalars, so no Numba-managed allocation is needed during recursion.
 @_njit(no_cfunc_wrapper=True, _nrt=False)
 def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
-                  depth, qleft, ply, alpha, beta, deadline, played, work, lmr):
+                  depth, qleft, ply, alpha, beta, deadline, played, work, lmr,
+                  repetition_score, siege):
     counts = work.counts
     counts[_NODE_COUNT] += 1
     if counts[_NODE_COUNT] & 511 == 0 and _native_now(work.clock) >= deadline:
@@ -725,7 +783,10 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         return (value if (winner == _A) == attacker else -value), -1
     stamp = hash_a if attacker else hash_d
     if ply and _native_seen(played, work.path, stamp, ply):
-        return 0, -1
+        # Scores enter in the attackers' perspective, independent of ply parity.
+        # The referee gives no-legal-move draws priority over repetition.
+        draw = repetition_score if repetition_score and _has_legal(board, attacker) else 0
+        return (draw if attacker else -draw), -1
 
     normal = depth > 0
     if normal or qleft or ply == 1:
@@ -736,7 +797,7 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         if not _has_legal(board, attacker):
             return 0, -1
         if qleft == 0:
-            return _native_score(board, attacker, attackers, defenders, king, work), -1
+            return _native_score(board, attacker, attackers, defenders, king, work, siege), -1
 
     best, best_move = -2 * _MATE, -1
     can_reduce = lmr and depth >= 3 and ply > 0 and beta == alpha + 1
@@ -744,7 +805,7 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
     if not normal or can_reduce:
         danger = _immediate_win(board, not attacker, attackers, king, work.scratch) >= 0
     if not normal and not danger:
-        best = _native_score(board, attacker, attackers, defenders, king, work)
+        best = _native_score(board, attacker, attackers, defenders, king, work, siege)
         if best >= beta:
             counts[_CUTOFFS] += 1
             return best, -1
@@ -790,6 +851,7 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
             child, _ = _native_visit(
                 board, not attacker, ha, hd, a, d, k, trial_depth, child_qleft, ply + 1,
                 -alpha - 1 if narrow else -beta, -alpha, deadline, played, work, lmr,
+                repetition_score, siege,
             )
             if counts[_STOPPED]:
                 break
@@ -879,9 +941,10 @@ class _NativeSearch:
     def accepts(self, weights):
         return weights is None or tuple(weights) == self.legacy_weights
 
-    def _iteration(self, flat, side, state, depth, qleft, alpha, beta, deadline, played, lmr):
+    def _iteration(self, flat, side, state, depth, qleft, alpha, beta, deadline, played, lmr,
+                   repetition_score=0, siege=False):
         return _native_visit(flat, side, *state, depth, qleft, 0, alpha, beta,
-                             deadline, played, self.work, lmr)
+                             deadline, played, self.work, lmr, repetition_score, siege)
 
     def choose(self, board: Board, is_attacker: bool, deadline: float,
                game_history: set[int], weights: Weights = None) -> Move:
@@ -891,6 +954,8 @@ class _NativeSearch:
         work = self.work
         flat, state = _native_position(board)
         played = np.asarray(sorted(game_history), dtype=np.uint64)
+        repetition_score = _ATTACKER_REPETITION_SCORE if is_attacker else 0
+        siege = is_attacker and state[3] <= 6 and state[2] >= state[3] + 4
         work.generation[0] += 1
         work.killers.fill(-1)
         work.history.fill(0)
@@ -917,11 +982,12 @@ class _NativeSearch:
             alpha, beta = (-2 * _MATE, 2 * _MATE) if first else (score - 850, score + 850)
             value, move = self._iteration(
                 flat, is_attacker, state, depth, qleft, alpha, beta, stop_at, played, True,
+                repetition_score, siege,
             )
             if not first and not work.counts[_STOPPED] and (value <= alpha or value >= beta):
                 value, move = self._iteration(
                     flat, is_attacker, state, depth, qleft, -2 * _MATE, 2 * _MATE,
-                    stop_at, played, True,
+                    stop_at, played, True, repetition_score, siege,
                 )
             # Selectivity may hide a later defence. Certify mate scores with
             # the normal depth in every branch before the early-exit decision.
@@ -929,7 +995,7 @@ class _NativeSearch:
                     and work.counts[_REDUCTIONS] > reduced):
                 value, move = self._iteration(
                     flat, is_attacker, state, depth, qleft, -2 * _MATE, 2 * _MATE,
-                    stop_at, played, False,
+                    stop_at, played, False, repetition_score, siege,
                 )
             if work.counts[_STOPPED]:
                 self.interrupted_depth = depth
