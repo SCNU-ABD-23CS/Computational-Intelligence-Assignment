@@ -22,11 +22,11 @@ from unittest.mock import patch
 
 import Tablut
 
-from . import HERE
+from . import HERE, RESULTS, TOP6_BUDGETS, TOP6_OPENINGS, TOP6_TEAMS
 from .openings import Opening, load_suite, move_event, start, standard
+from .top6 import match_seconds, progress_text, reusable_games
 
 
-RESULTS = HERE / "results"
 SCHEMA = 1
 
 
@@ -311,7 +311,7 @@ def _writer_lock(path: Path):
         yield
 
 
-def _read_finished(stream, fingerprint: str, expected: set[str]) -> set[str]:
+def _read_finished(stream, fingerprint: str, expected: set[str], records=None) -> set[str]:
     completed = set()
     stream.seek(0)
     while line := stream.readline():
@@ -324,6 +324,8 @@ def _read_finished(stream, fingerprint: str, expected: set[str]) -> set[str]:
         if row["schedule"] != fingerprint or game_id not in expected or game_id in completed:
             raise ValueError("JSONL belongs to a different schedule or contains a duplicate")
         completed.add(game_id)
+        if records is not None:
+            records[game_id] = row
     return completed
 
 
@@ -331,6 +333,8 @@ def fixture_for(args) -> list[Match]:
     if args.stage == "official":
         return paired(combinations(LEAGUE, 2), [standard()], 60.0)
     suite = load_suite()
+    if args.stage in TOP6_BUDGETS:
+        return paired(combinations(TOP6_TEAMS, 2), suite[:TOP6_OPENINGS], TOP6_BUDGETS[args.stage])
     if args.stage == "smoke":
         return paired(combinations(LEAGUE[:5], 2), suite[:args.openings or 1], 10.0)
     if args.stage == "random":
@@ -362,6 +366,13 @@ def select_bosses() -> list[str]:
     ))[:3]
 
 
+def _append_result(stream, row, fingerprint, stage, total):
+    row.update(schedule=fingerprint, stage=stage, scheduledGames=total)
+    stream.write((json.dumps(row, separators=(",", ":"), allow_nan=False) + "\n").encode())
+    stream.flush()
+    os.fsync(stream.fileno())
+
+
 def run_schedule(matches, run_id, stage, *, resume=False, limit=None, factories=None,
                  fingerprint_extra=None) -> Path:
     """Run one fixture list serially and keep its results resumable."""
@@ -370,21 +381,44 @@ def run_schedule(matches, run_id, stage, *, resume=False, limit=None, factories=
     RESULTS.mkdir(exist_ok=True)
     path = RESULTS / f"{run_id}.jsonl"
     fingerprint = _fingerprint(stage, matches, fingerprint_extra)
+    top6 = stage in TOP6_BUDGETS
+    recorded = {} if top6 else None
+    began = time.perf_counter()
+    total = len(matches)
     with _writer_lock(RESULTS / "arena"), path.open("a+b") as stream:
         if stream.tell() and not resume:
             raise ValueError(f"{path.name} already exists. Use --resume or another --run-id.")
-        done = _read_finished(stream, fingerprint, {game.id for game in matches})
-        print(f"{run_id} | {len(done)}/{len(matches)} recorded | workers=1", flush=True)
+        done = _read_finished(stream, fingerprint, {game.id for game in matches}, recorded)
+        if top6 and any((row["stage"], row["scheduledGames"]) != (stage, total)
+                        for row in recorded.values()):
+            raise ValueError(f"{path.name}: inconsistent stage or schedule size")
+        if stage == "top6_10s":
+            for row in reusable_games(RESULTS, matches, recorded):
+                _append_result(stream, row, fingerprint, stage, total)
+                recorded[row["id"]] = row
+                done.add(row["id"])
         pending = [game for game in matches if game.id not in done]
-        for idx, match in enumerate(pending[:limit], len(done) + 1):
+        if top6:
+            reused = sum("reusedFrom" in row for row in recorded.values())
+            live_times = [match_seconds(row) for row in recorded.values() if "reusedFrom" not in row]
+            print(f"{run_id} | 已复用 {reused} 局 · 待跑 {len(pending)} 局 | workers=1", flush=True)
+            print(progress_text(len(done), total, time.perf_counter() - began, live_times,
+                                pending[0] if pending else None), flush=True)
+        else:
+            print(f"{run_id} | {len(done)}/{total} recorded | workers=1", flush=True)
+        for index, match in enumerate(pending[:limit]):
             row = run_match(match, factories=factories) if factories else run_match(match)
-            row.update(schedule=fingerprint, stage=stage, scheduledGames=len(matches))
-            stream.write((json.dumps(row, separators=(",", ":"), allow_nan=False) + "\n").encode())
-            stream.flush()
-            os.fsync(stream.fileno())
-            winner = row["teams"].get(row["winner"], "draw")
-            print(f"{idx}/{len(matches)} {match.id} | {winner} | {row['reason']} | "
-                  f"{row['remaining']['A']:.3f}/{row['remaining']['D']:.3f}s remaining", flush=True)
+            _append_result(stream, row, fingerprint, stage, total)
+            completed = len(done) + index + 1
+            if top6:
+                live_times.append(match_seconds(row))
+                upcoming = pending[index + 1] if index + 1 < len(pending) else None
+                print(progress_text(completed, total, time.perf_counter() - began, live_times,
+                                    upcoming, row), flush=True)
+            else:
+                winner = row["teams"].get(row["winner"], "draw")
+                print(f"{completed}/{total} {match.id} | {winner} | {row['reason']} | "
+                      f"{row['remaining']['A']:.3f}/{row['remaining']['D']:.3f}s remaining", flush=True)
     return path
 
 
@@ -392,11 +426,17 @@ def run(args) -> None:
     run_id = args.run_id or (f"duel-{args.opponent}-{args.budget:g}" if args.stage == "duel"
                               else args.stage)
     run_schedule(fixture_for(args), run_id, args.stage, resume=args.resume, limit=args.limit)
+    if args.stage in TOP6_BUDGETS and run_id == args.stage:
+        from .dashboard import write_dashboard
+
+        path, _ = write_dashboard(RESULTS)
+        print(f"看板已更新 {path.resolve()}", flush=True)
 
 
 def main() -> None:
     parser = ArgumentParser(description=__doc__)
-    parser.add_argument("--stage", choices=("smoke", "random", "duel", "official", "fast", "final"),
+    parser.add_argument("--stage", choices=("smoke", "random", "duel", "official", "fast", "final",
+                                            *TOP6_BUDGETS),
                         default="smoke")
     parser.add_argument("--openings", type=int, choices=range(1, 13))
     parser.add_argument("--opponent", choices=TEAMS)
@@ -408,7 +448,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.limit is not None and args.limit < 0:
         parser.error("--limit must be nonnegative")
-    if args.openings and args.stage in ("official", "final"):
+    if args.openings and args.stage in ("official", "final", *TOP6_BUDGETS):
         parser.error("This stage uses its prescribed opening schedule")
     try:
         run(args)

@@ -10,12 +10,18 @@ import json
 from math import exp, log
 from pathlib import Path
 
-from .runner import RESULTS
+from . import RESULTS
 
 
 FORFEITS = ("timeout", "illegal move", "exception")
 WIN_REASONS = ("king captured", "king escaped to the edge", "fewer than two attackers remain")
 DRAW_REASONS = ("repeated position", "no legal move")
+REASON_LABELS = {
+    "king captured": "国王被捕", "king escaped to the edge": "国王逃生",
+    "fewer than two attackers remain": "攻兵不足两枚", "repeated position": "局面重复",
+    "no legal move": "无合法步", "timeout": "超时判负", "illegal move": "非法步判负",
+    "exception": "异常判负",
+}
 
 
 def load(path: Path) -> list[dict]:

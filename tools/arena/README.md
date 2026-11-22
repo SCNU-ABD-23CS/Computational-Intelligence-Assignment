@@ -43,22 +43,18 @@ python -B -m tools.arena.overview
 `overview` 复放三个赛段、核对官方裁判判定与记录，并生成 `results/overview.md`。
 用 `python -B -m tools.arena.report official` 可单独生成一个赛段的战报。
 
-## 离线统计看板
+## 六强双档联赛
 
-在仓库根目录运行以下命令。看板读取已有的 JSONL 与 CSV，适用于单个赛段或完整联赛。
+两档都使用前 6 个固定开局换边，共 180 局。用已激活的 Python 3.12 环境从仓库根目录运行。
 
 ```powershell
-python -B -m tools.arena.dashboard
+python -X utf8 -B -m tools.arena.runner --stage top6_10s --workers 1 --resume
+python -X utf8 -B -m tools.arena.runner --stage top6_60s --workers 1 --resume
 ```
 
-双击 `tools/arena/results/dashboard.html` 即可离线打开，也可把这个文件单独发给队友。
-用页顶标签或总览卡片切换赛段。点击「打印视图」可打印当前赛段或另存为 PDF。
+10 秒档从 `results/fast.jsonl` 和 `results/evolution-fast.jsonl` 复用 168 局，补跑 v2 对 91ffcc8 的 12 局。60 秒档完整串行运行。两档逐局落盘并显示进度和剩余时间，可用 `Ctrl+C` 中断后重复原命令续跑。
 
-总览汇总已加载赛段的对局、终局与稳定性。有四代对照数据时，按相同外部对手、开局和执棋方比较得分率。
-循环赛交手热力图按得分率着色，和棋贡献 1 分。强敌赛按对手展示新版的换边结果。
-
-可用 `--results-dir` 指定赛果目录，用 `--output` 指定生成位置。
-`overview` 在输出原有战报后刷新看板，可用 `--no-dashboard` 跳过刷新。
+两条命令结束后都刷新 `tools/arena/results/dashboard.html`。双击该文件即可离线查看总览、60 秒档和 10 秒档。运行 `python -B -m tools.arena.dashboard` 可随时根据已落盘的局数手动刷新。
 
 ## v2 权重与四代对照
 
@@ -70,11 +66,10 @@ python -B -m tools.arena.dashboard
 ```powershell
 python -B -m tools.arena.export_snapshots --version v_91ffcc8
 python -B -m tools.arena.evolution --workers 1 --resume
-python -B -m tools.arena.dashboard
 python -B -m tools.arena.verify_submission
 ```
 
-四代图使用前三代在历史联赛对六支外部队伍的成绩，以及 v2 按相同赛制复跑的 12 局标准赛和 72 局快棋。只读冒烟在独立目录用官方裁判完成 10 秒和 60 秒对局。
+四代对照的赛果保存在 `results/evolution-official.jsonl` 和 `results/evolution-fast.jsonl`。只读冒烟在独立目录用官方裁判完成 10 秒和 60 秒对局。
 
 ## 回看棋谱
 
