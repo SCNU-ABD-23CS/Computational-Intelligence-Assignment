@@ -122,6 +122,37 @@ result = search_fixed_depth(
 - 比较排序时，在相同局面、深度、历史和权重下，分别用引擎顺序与 `tactical_ordering=True` 运行。核对根节点评分，并比较访问节点数和剪枝次数。同分时可以选出不同走法。
 - 比较权重时，固定局面、深度、历史和排序设置，只更换 `weights`。[特征顺序与权重范围](EVALUATION.md)
 
+### 成员 5 完整调权与实验流程
+
+`offline_arena_ga.py` 在不修改 Team19 核心代码的前提下注入候选权重。GA 使用固定深度训练；最终验证可切换 `--mode iterative`，使用正式 Player 的迭代加深搜索。所有比赛经过官方裁判，采用固定开局、相同种子和换边对局。
+
+```powershell
+# 快速检查官方裁判、RandomBot 和 GreedyBot 链路
+python -B offline_arena_ga.py smoke --depth 1 --run-id smoke
+
+# 正式 GA 示例；训练与验证使用互不重叠的固定开局
+python -B offline_arena_ga.py ga --run-id ga-d2 --population 8 --generations 8 `
+  --depth 2 --budget 10 --train-openings 2 --validation-openings 2 `
+  --train-opponents default,greedy,random --validation-opponents naive,mcts --workers 4
+
+# 用正式迭代搜索、10 秒或 60 秒预算独立复验
+python -B offline_arena_ga.py validate `
+  --candidate tools/arena/results/tuning/ga-d2/best_weights.json `
+  --mode iterative --budget 60 --opponents naive,mcts --openings 2 --opening-start 2 `
+  --output tools/arena/results/tuning/ga-d2/validation-iterative-60s.json
+
+# 单特征消融与搜索深度对比
+python -B offline_arena_ga.py ablate --candidate tools/arena/results/tuning/ga-d2/best_weights.json
+python -B offline_arena_ga.py depths --candidate tools/arena/results/tuning/ga-d2/best_weights.json --depths 1,2,3
+
+# 只有同一候选在验证中严格超过默认权重且零故障时才允许导出
+python -B offline_arena_ga.py export `
+  --candidate tools/arena/results/tuning/ga-d2/best_weights.json `
+  --validation tools/arena/results/tuning/ga-d2/validation-iterative-60s.json
+```
+
+结果写入被 Git 忽略的 `tools/arena/results/tuning/<run-id>/`，包括 `config.json`、`generations.jsonl`、`best_weights.json`、`evolution.svg`、验证 JSON/Markdown，以及消融和深度对比 CSV。运行 `python -B -m unittest tools.arena.test_tuning -v` 可单独验证本模块。PowerShell 使用反引号换行；Bash 可改为反斜杠或写成单行。
+
 ## 验证
 
 使用 Python 3.12，在仓库根目录运行：
