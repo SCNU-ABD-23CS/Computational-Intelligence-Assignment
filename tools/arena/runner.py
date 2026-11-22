@@ -13,10 +13,13 @@ from importlib import import_module
 from io import StringIO
 from itertools import combinations
 import json
+from math import isfinite
 import operator
 import os
 from pathlib import Path
 import re
+from shutil import copyfile
+from tempfile import NamedTemporaryFile
 import time
 from unittest.mock import patch
 
@@ -24,7 +27,8 @@ import Tablut
 
 from . import HERE, RESULTS, TOP6_BUDGETS, TOP6_OPENINGS, TOP6_TEAMS
 from .openings import Opening, load_suite, move_event, start, standard
-from .top6 import match_seconds, progress_text, reusable_games
+from .schedule import Schedule, fixture_id
+from .top6 import duration, match_seconds, progress_text, reusable_games
 
 
 SCHEMA = 1
@@ -33,27 +37,34 @@ SCHEMA = 1
 @dataclass(frozen=True)
 class Team:
     module: str
+    alias: str
+    description: str
     search: str | None = None
 
 
 TEAMS = {
-    "Team19-New": Team("Team19", "Team19_search"),
-    "Team19-PreFix": Team(".snapshots.v_e3d64c4.Team19", ".snapshots.v_e3d64c4.Team19_search"),
-    "Team19-Old": Team(".snapshots.v_99671ae.Team19", ".snapshots.v_99671ae.Team19_search"),
-    "GreedyBot": Team(".bots.greedy_bot"),
-    "NaiveAB-D2": Team(".bots.naive_ab_d2"),
-    "Guided-MCTS": Team(".bots.guided_mcts"),
-    "BFS-Strategist": Team(".bots.bfs_strategist"),
-    "QSearch-PVS": Team(".bots.qsearch_pvs"),
-    "Grandmaster-Numba": Team(".bots.grandmaster_numba"),
-    "RandomBot": Team(".bots.random_bot"),
+    "Team19-New": Team("Team19", "new", "旧赛段入口，运行当前 Team19", "Team19_search"),
+    "Team19-PreFix": Team(".snapshots.v_e3d64c4.Team19", "prefix", "估值修复前快照 e3d64c4",
+                          ".snapshots.v_e3d64c4.Team19_search"),
+    "Team19-Old": Team(".snapshots.v_99671ae.Team19", "old", "三阶段优化前快照 99671ae",
+                       ".snapshots.v_99671ae.Team19_search"),
+    "GreedyBot": Team(".bots.greedy_bot", "greedy", "一步贪心基线"),
+    "NaiveAB-D2": Team(".bots.naive_ab_d2", "ab2", "固定两层 Alpha-Beta 基线"),
+    "Guided-MCTS": Team(".bots.guided_mcts", "mcts", "启发式引导蒙特卡洛树搜索"),
+    "BFS-Strategist": Team(".bots.bfs_strategist", "bfs", "国王逃生路径与包围网估值"),
+    "QSearch-PVS": Team(".bots.qsearch_pvs", "qs", "主变搜索与静态延伸"),
+    "Grandmaster-Numba": Team(".bots.grandmaster_numba", "gm", "Numba 高速强敌"),
+    "RandomBot": Team(".bots.random_bot", "random", "随机合法步冒烟基线"),
 }
 LEAGUE = tuple(name for name in TEAMS if name != "RandomBot")
 EXTERNAL = LEAGUE[3:]
 TEAMS.update({
-    "Team19-91ffcc8": Team(".snapshots.v_91ffcc8.Team19", ".snapshots.v_91ffcc8.Team19_search"),
-    "Team19-v2": Team("Team19", "Team19_search"),
+    "Team19-91ffcc8": Team(".snapshots.v_91ffcc8.Team19", "91f", "Numba 重构前快照 91ffcc8",
+                         ".snapshots.v_91ffcc8.Team19_search"),
+    "Team19-v2": Team("Team19", "v2", "当前提交版，Numba 搜索与已调权重", "Team19_search"),
 })
+TEAM_NAMES = {label.casefold(): name for name, team in TEAMS.items() for label in (name, team.alias)}
+TEAM_PRESETS = {"top6": TOP6_TEAMS, "all": tuple(TEAMS)}
 
 
 @dataclass(frozen=True)
@@ -65,7 +76,7 @@ class Match:
 
     @property
     def id(self) -> str:
-        return f"{self.budget:g}-{self.opening.name}-{self.attacker}-A-{self.defender}"
+        return fixture_id(self.budget, self.opening.name, self.attacker, self.defender)
 
 
 def paired(pairs, openings: list[Opening], budget: float) -> list[Match]:
@@ -311,17 +322,20 @@ def _writer_lock(path: Path):
         yield
 
 
-def _read_finished(stream, fingerprint: str, expected: set[str], records=None) -> set[str]:
+def _read_finished(stream, fingerprint: str | None, expected: set[str],
+                   records=None, *, repair=True) -> set[str]:
     completed = set()
     stream.seek(0)
     while line := stream.readline():
         if not line.endswith(b"\n"):
             # A crash can leave the final append incomplete.
-            stream.truncate(stream.tell() - len(line))
+            if repair:
+                stream.truncate(stream.tell() - len(line))
             break
         row = json.loads(line)
         game_id = row["id"]
-        if row["schedule"] != fingerprint or game_id not in expected or game_id in completed:
+        if (fingerprint is not None and row["schedule"] != fingerprint
+                or game_id not in expected or game_id in completed):
             raise ValueError("JSONL belongs to a different schedule or contains a duplicate")
         completed.add(game_id)
         if records is not None:
@@ -381,36 +395,43 @@ def run_schedule(matches, run_id, stage, *, resume=False, limit=None, factories=
     RESULTS.mkdir(exist_ok=True)
     path = RESULTS / f"{run_id}.jsonl"
     fingerprint = _fingerprint(stage, matches, fingerprint_extra)
-    top6 = stage in TOP6_BUDGETS
-    recorded = {} if top6 else None
+    with _writer_lock(RESULTS / "arena"):
+        _play_schedule(path, matches, stage, fingerprint, resume=resume, limit=limit, factories=factories)
+    return path
+
+
+def _play_schedule(path, matches, stage, fingerprint, *, resume, limit, factories=None,
+                   progress=False):
+    detailed = progress or stage in TOP6_BUDGETS
+    recorded = {} if detailed else None
     began = time.perf_counter()
     total = len(matches)
-    with _writer_lock(RESULTS / "arena"), path.open("a+b") as stream:
+    with path.open("a+b") as stream:
         if stream.tell() and not resume:
             raise ValueError(f"{path.name} already exists. Use --resume or another --run-id.")
         done = _read_finished(stream, fingerprint, {game.id for game in matches}, recorded)
-        if top6 and any((row["stage"], row["scheduledGames"]) != (stage, total)
-                        for row in recorded.values()):
+        if detailed and any((row["stage"], row["scheduledGames"]) != (stage, total)
+                            for row in recorded.values()):
             raise ValueError(f"{path.name}: inconsistent stage or schedule size")
         if stage == "top6_10s":
-            for row in reusable_games(RESULTS, matches, recorded):
+            for row in reusable_games(path.parent, matches, recorded):
                 _append_result(stream, row, fingerprint, stage, total)
                 recorded[row["id"]] = row
                 done.add(row["id"])
         pending = [game for game in matches if game.id not in done]
-        if top6:
+        if detailed:
             reused = sum("reusedFrom" in row for row in recorded.values())
             live_times = [match_seconds(row) for row in recorded.values() if "reusedFrom" not in row]
-            print(f"{run_id} | 已复用 {reused} 局 · 待跑 {len(pending)} 局 | workers=1", flush=True)
+            print(f"{path.stem} | 已复用 {reused} 局 · 待跑 {len(pending)} 局 | workers=1", flush=True)
             print(progress_text(len(done), total, time.perf_counter() - began, live_times,
                                 pending[0] if pending else None), flush=True)
         else:
-            print(f"{run_id} | {len(done)}/{total} recorded | workers=1", flush=True)
+            print(f"{path.stem} | {len(done)}/{total} recorded | workers=1", flush=True)
         for index, match in enumerate(pending[:limit]):
             row = run_match(match, factories=factories) if factories else run_match(match)
             _append_result(stream, row, fingerprint, stage, total)
             completed = len(done) + index + 1
-            if top6:
+            if detailed:
                 live_times.append(match_seconds(row))
                 upcoming = pending[index + 1] if index + 1 < len(pending) else None
                 print(progress_text(completed, total, time.perf_counter() - began, live_times,
@@ -419,41 +440,274 @@ def run_schedule(matches, run_id, stage, *, resume=False, limit=None, factories=
                 winner = row["teams"].get(row["winner"], "draw")
                 print(f"{completed}/{total} {match.id} | {winner} | {row['reason']} | "
                       f"{row['remaining']['A']:.3f}/{row['remaining']['D']:.3f}s remaining", flush=True)
-    return path
+
+
+def _team_name(label: str) -> str:
+    try:
+        return TEAM_NAMES[label.strip().casefold()]
+    except KeyError:
+        raise ValueError(f"未知队伍 {label!r}，用 --list-teams 查看简称。") from None
+
+
+def _select_teams(value: str) -> tuple[str, ...]:
+    teams = []
+    for token in value.split(","):
+        preset = TEAM_PRESETS.get(token.strip().casefold())
+        teams.extend(preset if preset is not None else (_team_name(token),))
+    selected = tuple(dict.fromkeys(teams))
+    if len(selected) < 2:
+        raise ValueError("--teams 至少需要两个不同队伍。")
+    return selected
+
+
+def _select_budgets(value: str) -> tuple[float, ...]:
+    try:
+        budgets = tuple(float(token) for token in value.split(","))
+    except ValueError:
+        raise ValueError("--budgets 需要逗号分隔的秒数，例如 60,10。") from None
+    if any(not isfinite(budget) or budget <= 0 for budget in budgets):
+        raise ValueError("--budgets 只接受有限的正数。")
+    if len(budgets) != len(set(budgets)):
+        raise ValueError("--budgets 中同一档预算只能指定一次。")
+    return budgets
+
+
+def _list_teams() -> None:
+    print(f"{'简称':<8} {'算法全名':<21} 简介")
+    for name, team in TEAMS.items():
+        print(f"{team.alias:<10} {name:<25} {team.description}")
+    for name, teams in TEAM_PRESETS.items():
+        print(f"{name:<10} " + ",".join(TEAMS[team].alias for team in teams))
+
+
+def _experiment_schedules(args):
+    teams = _select_teams(args.teams)
+    budgets = _select_budgets("60" if args.budgets is None else args.budgets)
+    suite = load_suite()
+    games = 2 if args.games_per_pair is None else args.games_per_pair
+    if games <= 0 or games % 2:
+        raise ValueError("--games-per-pair 必须是正偶数，每个开局交换攻守各打一局。")
+    if games > 2 * len(suite):
+        raise ValueError(f"开局库有 {len(suite)} 个开局，每组最多 {2 * len(suite)} 局。")
+    if args.anchor is not None and args.format != "1vn":
+        raise ValueError("--anchor 只用于 --format 1vn。")
+    anchor = None
+    if args.format == "1vn":
+        anchor = teams[0] if args.anchor is None else _team_name(args.anchor)
+    if anchor is not None and anchor not in teams:
+        raise ValueError(f"擂主 {anchor} 必须在 --teams 中。")
+    if args.run_id is not None and not re.fullmatch(r"[A-Za-z0-9_-]+", args.run_id):
+        raise ValueError("--run-id 只接受英文字母、数字、连字符和下划线。")
+
+    openings = suite[:games // 2]
+    config = hashlib.sha256(json.dumps([teams, anchor, games]).encode()).hexdigest()[:12]
+    prefix = f"{args.run_id or 'arena'}-{config}"
+    schedules = []
+    for budget in budgets:
+        budget_id = str(budget).removesuffix(".0").replace(".", "p").replace("+", "")
+        schedule = Schedule(f"{prefix}-{budget_id}s", teams, budget,
+                            tuple(opening.name for opening in openings), anchor)
+        schedules.append((schedule, paired(schedule.pairs(), openings, budget)))
+    if not isfinite(sum(2 * schedule.budget * schedule.games for schedule, _ in schedules)):
+        raise ValueError("--budgets 指定的总计时过大。")
+    return schedules
+
+
+@dataclass
+class ExperimentPlan:
+    schedule: Schedule
+    matches: list[Match]
+    path: Path
+    fingerprint: str
+    archive: bool
+    reusable: list[dict]
+    completed: int
+    needs_mode: bool
+
+
+def _plan_experiment(schedule, matches, args, rerun_team):
+    path = RESULTS / f"{schedule.name}.jsonl"
+    fingerprint = _fingerprint(schedule.name, matches)
+    exists = path.is_file()
+    archive = exists and (args.fresh or rerun_team is not None)
+    needs_mode = bool(exists and path.stat().st_size and not (args.resume or archive))
+    if needs_mode and not args.dry_run:
+        raise ValueError(f"{path.name} 已有赛果，请使用 --resume、--fresh 或 --rerun-team。")
+    if rerun_team is not None and not exists:
+        raise ValueError(f"{path.name} 缺少同配置赛果。请先运行完整实验。")
+    records = {}
+    if exists and not args.fresh:
+        try:
+            with path.open("rb") as stream:
+                _read_finished(stream, None if rerun_team else fingerprint,
+                               {match.id for match in matches}, records, repair=False)
+            if (len({row["schedule"] for row in records.values()}) > 1
+                    or any((row["stage"], row["scheduledGames"]) != (schedule.name, len(matches))
+                           for row in records.values())):
+                raise ValueError("Mixed schedules")
+        except (TypeError, KeyError, ValueError) as error:
+            raise ValueError(f"{path.name} 与当前实验不匹配。可用 --fresh 归档并重跑。") from error
+    reusable = []
+    if rerun_team is not None:
+        from .overview import audit_game
+
+        changed = TEAMS[rerun_team].module
+        for match in matches:
+            row = records.get(match.id)
+            if row and all(TEAMS[name].module != changed for name in (match.attacker, match.defender)):
+                audit_game(row, match)
+                reusable.append(row)
+    return ExperimentPlan(schedule, matches, path, fingerprint, archive, reusable,
+                          0 if archive else len(records), needs_mode)
+
+
+def _archive_experiment(plan):
+    path = plan.path
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    archive = path.with_name(f"{path.stem}.before-{stamp}.jsonl")
+    if archive.exists():
+        raise FileExistsError(archive)
+    temporary = None
+    try:
+        # Prepare all reused rows before replacing the journal users resume.
+        with NamedTemporaryFile(dir=path.parent, suffix=".tmp", delete=False) as stream:
+            temporary = Path(stream.name)
+            for row in plan.reusable:
+                origin = {"file": archive.name, "id": row["id"], "schedule": row["schedule"]}
+                _append_result(stream, dict(row, reusedFrom=origin), plan.fingerprint,
+                               plan.schedule.name, len(plan.matches))
+        copyfile(path, archive)
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    print(f"已归档 {archive.resolve()}", flush=True)
+
+
+def _describe_experiment(plans, *, dashboard):
+    schedule = plans[0].schedule
+    print("参赛队伍 " + "、".join(f"{TEAMS[name].alias} ({name})" for name in schedule.teams))
+    anchor = f" · 擂主 {schedule.anchor}" if schedule.anchor else ""
+    print(f"{schedule.format_label}{anchor} · {len(schedule.openings)} 个固定开局换边 · "
+          f"每组 {schedule.games_per_pair} 局 · workers=1")
+    total = pending = 0
+    estimate = 0.0
+    for plan in plans:
+        games = len(plan.matches)
+        left = games - plan.completed - len(plan.reusable)
+        seconds = 2 * plan.schedule.budget * left
+        total += games
+        pending += left
+        estimate += seconds
+        print(f"{plan.schedule.budget:g} 秒档 · {games} 局 · 已落盘 {plan.completed} 局 · "
+              f"可复用 {games - left} 局 · 待跑 {left} 局 · 预算估算 {duration(seconds)}")
+        print(f"  {plan.path.resolve()}")
+        if plan.archive:
+            print("  开跑前将归档旧赛果。")
+        if plan.needs_mode:
+            print("  继续时请用 --resume，也可用 --fresh 或 --rerun-team。")
+    print(f"合计 {total} 局 · 待跑 {pending} 局 · 预算估算 {duration(estimate)}（双方用满计时，另计初始化）")
+    if dashboard:
+        print(f"看板 {(RESULTS / 'dashboard.html').resolve()}")
+
+
+def _resume_command(schedules, run_id):
+    first = schedules[0]
+    teams = ",".join(TEAMS[name].alias for name in first.teams)
+    budgets = ",".join(str(schedule.budget).removesuffix(".0") for schedule in schedules)
+    command = (f"python -X utf8 -B -m tools.arena.runner --teams {teams} "
+               f"--games-per-pair {first.games_per_pair} --budgets {budgets} --resume")
+    if first.anchor:
+        command += f" --format 1vn --anchor {TEAMS[first.anchor].alias}"
+    if run_id:
+        command += f" --run-id {run_id}"
+    return command
+
+
+def run_experiment(args) -> None:
+    entries = _experiment_schedules(args)
+    rerun_team = _team_name(args.rerun_team) if args.rerun_team is not None else None
+    if rerun_team is not None and rerun_team not in entries[0][0].teams:
+        raise ValueError(f"{rerun_team} 必须在 --teams 中才能局部重跑。")
+    if args.dry_run:
+        plans = [_plan_experiment(schedule, matches, args, rerun_team) for schedule, matches in entries]
+        _describe_experiment(plans, dashboard=not args.no_dashboard)
+        return
+
+    RESULTS.mkdir(parents=True, exist_ok=True)
+    with _writer_lock(RESULTS / "arena"):
+        plans = [_plan_experiment(schedule, matches, args, rerun_team) for schedule, matches in entries]
+        _describe_experiment(plans, dashboard=not args.no_dashboard)
+        for plan in plans:
+            if plan.archive:
+                _archive_experiment(plan)
+        for plan in plans:
+            _play_schedule(plan.path, plan.matches, plan.schedule.name, plan.fingerprint,
+                           resume=args.resume or plan.archive, limit=args.limit, progress=True)
+        if not args.no_dashboard:
+            from .dashboard import write_dashboard
+
+            schedules = tuple(plan.schedule for plan in plans)
+            path, _ = write_dashboard(RESULTS, schedules=schedules,
+                                      resume_command=_resume_command(schedules, args.run_id))
+            print(f"看板已更新 {path.resolve()}", flush=True)
 
 
 def run(args) -> None:
     run_id = args.run_id or (f"duel-{args.opponent}-{args.budget:g}" if args.stage == "duel"
                               else args.stage)
     run_schedule(fixture_for(args), run_id, args.stage, resume=args.resume, limit=args.limit)
-    if args.stage in TOP6_BUDGETS and run_id == args.stage:
+    if args.stage in TOP6_BUDGETS and run_id == args.stage and not getattr(args, "no_dashboard", False):
         from .dashboard import write_dashboard
 
         path, _ = write_dashboard(RESULTS)
         print(f"看板已更新 {path.resolve()}", flush=True)
 
 
-def main() -> None:
+def main(argv=None) -> None:
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--stage", choices=("smoke", "random", "duel", "official", "fast", "final",
-                                            *TOP6_BUDGETS),
-                        default="smoke")
+                                            *TOP6_BUDGETS), help="运行已有固定赛段")
     parser.add_argument("--openings", type=int, choices=range(1, 13))
     parser.add_argument("--opponent", choices=TEAMS)
-    parser.add_argument("--budget", type=float, choices=(10.0, 60.0), default=10.0)
+    parser.add_argument("--budget", type=float, choices=(10.0, 60.0), help="历史 duel 赛段的时间档")
     parser.add_argument("--workers", type=int, choices=(1,), default=1)
     parser.add_argument("--run-id")
-    parser.add_argument("--resume", action="store_true")
+    parser.add_argument("--list-teams", action="store_true", help="列出算法全名、简称和预设")
+    parser.add_argument("--teams", help="逗号分隔的队名、简称或预设，如 top6")
+    parser.add_argument("--games-per-pair", type=int, help="每组场次，默认 2 局")
+    parser.add_argument("--budgets", help="每方整局秒数，逗号分隔，默认 60")
+    parser.add_argument("--format", choices=("rr", "1vn"), help="全循环 rr（默认）或车轮战 1vn")
+    parser.add_argument("--anchor", help="1vn 的擂主，默认第一个队伍")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--resume", action="store_true", help="从已落盘的赛程续跑")
+    modes.add_argument("--fresh", action="store_true", help="归档并全新运行参数化实验")
+    modes.add_argument("--rerun-team", help="归档旧赛果并只重跑指定队伍参与的对局")
+    parser.add_argument("--dry-run", action="store_true", help="只预览参数化赛程")
+    parser.add_argument("--no-dashboard", action="store_true", help="保留当前看板文件")
     parser.add_argument("--limit", type=int)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.list_teams:
+        _list_teams()
+        return
     if args.limit is not None and args.limit < 0:
         parser.error("--limit must be nonnegative")
     if args.openings and args.stage in ("official", "final", *TOP6_BUDGETS):
         parser.error("This stage uses its prescribed opening schedule")
     try:
-        run(args)
+        if args.teams is not None:
+            if any(value is not None for value in (args.stage, args.openings, args.budget, args.opponent)):
+                raise ValueError("--teams 使用参数化赛程，请使用 --games-per-pair 和 --budgets。")
+            run_experiment(args)
+        else:
+            if (args.fresh or args.dry_run or any(value is not None for value in (
+                    args.rerun_team, args.budgets, args.games_per_pair, args.format, args.anchor))):
+                raise ValueError("使用参数化选项时请通过 --teams 指定参赛队伍。")
+            args.stage = args.stage or "smoke"
+            args.budget = args.budget or 10.0
+            run(args)
     except KeyboardInterrupt:
-        parser.exit(130, "Stopped. Resume with the same arguments and --resume.\n")
+        parser.exit(130, "已停止。保留赛程参数，用 --resume 续跑。\n")
     except (ValueError, OSError) as error:
         parser.error(str(error))
 

@@ -1,4 +1,4 @@
-"""Read complete records from the two top-six JSONL journals."""
+"""Read complete records from saved tournament journals."""
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -6,8 +6,9 @@ from fractions import Fraction
 import json
 from pathlib import Path
 
-from . import HERE, TOP6_BUDGETS, TOP6_GAMES, TOP6_OPENINGS, TOP6_TEAMS
+from . import HERE, TOP6_BUDGETS, TOP6_OPENINGS, TOP6_TEAMS
 from .report import FORFEITS, elo, points
+from .schedule import Schedule, fixture_id
 
 
 STAGES = {name: f"{budget} 秒 6 强全循环" for name, budget in TOP6_BUDGETS.items()}
@@ -51,8 +52,7 @@ class Team:
 
 @dataclass
 class Stage:
-    name: str
-    budget: int
+    schedule: Schedule
     games: int
     plies: int
     reused: int
@@ -63,14 +63,28 @@ class Stage:
     stability: dict[str, Counter]
 
     @property
+    def name(self) -> str:
+        return self.schedule.name
+
+    @property
+    def budget(self) -> float:
+        return self.schedule.budget
+
+    @property
+    def title(self) -> str:
+        return STAGES.get(self.name, self.schedule.title)
+
+    @property
     def complete(self) -> bool:
-        return self.games == TOP6_GAMES
+        return self.games == self.schedule.games
 
 
-def _load_records(path: Path, name: str, budget: int, openings: set[str]) -> list[dict]:
+def _load_records(path: Path, schedule: Schedule) -> list[dict]:
     if not path.is_file():
         return []
     records, ids, schedules = [], set(), set()
+    fixtures = schedule.fixture_ids()
+    total = schedule.games
     with path.open("rb") as source:
         for line in source:
             if not line.endswith(b"\n"):
@@ -79,11 +93,10 @@ def _load_records(path: Path, name: str, budget: int, openings: set[str]) -> lis
             row = json.loads(line)
             attack, defence = row["teams"]["A"], row["teams"]["D"]
             opening = row["opening"]
-            expected = f"{budget}-{opening}-{attack}-A-{defence}"
-            if (row["stage"] != name or row["budget"] != budget or row["scheduledGames"] != TOP6_GAMES
-                    or attack not in TOP6_TEAMS or defence not in TOP6_TEAMS or attack == defence
-                    or opening not in openings or row["winner"] not in ("A", "D", None)
-                    or row["id"] != expected or expected in ids):
+            expected = fixture_id(schedule.budget, opening, attack, defence)
+            if (row["stage"] != schedule.name or row["budget"] != schedule.budget
+                    or row["scheduledGames"] != total or row["winner"] not in ("A", "D", None)
+                    or expected not in fixtures or row["id"] != expected or expected in ids):
                 raise ValueError(f"Invalid or duplicate fixture {row['id']}")
             ids.add(expected)
             schedules.add(row["schedule"])
@@ -93,13 +106,12 @@ def _load_records(path: Path, name: str, budget: int, openings: set[str]) -> lis
     return records
 
 
-def _standings(records, totals):
-    ratings = elo(records, TOP6_TEAMS) if records else {}
-    names = sorted(TOP6_TEAMS, key=lambda team: (
+def _standings(schedule, records, totals):
+    ratings = elo(records, schedule.teams) if records else {}
+    names = sorted(schedule.teams, key=lambda team: (
         not totals[team].games, -totals[team].point_rate, team,
     ))
-    complete = len(records) == TOP6_GAMES
-    top = totals[names[0]].points if complete else None
+    top = totals[names[0]].points if not schedule.anchor and len(records) == schedule.games else None
     teams = []
     rank, previous_rate = None, None
     for index, name in enumerate(names, 1):
@@ -113,10 +125,10 @@ def _standings(records, totals):
     return teams
 
 
-def _summarize(name: str, budget: int, records: list[dict]) -> Stage:
+def _summarize(schedule: Schedule, records: list[dict]) -> Stage:
     totals, roles, matrix = (defaultdict(Counter) for _ in range(3))
     reasons = Counter()
-    stability = {team: Counter() for team in TOP6_TEAMS}
+    stability = {team: Counter() for team in schedule.teams}
     plies = 0
     for row in records:
         reasons[row["reason"]] += 1
@@ -136,21 +148,24 @@ def _summarize(name: str, budget: int, records: list[dict]) -> Stage:
             if row["reason"] in FORFEITS and score == 0:
                 stability[team][row["reason"]] += 1
 
-    team_scores = {team: Score.from_counts(totals[team]) for team in TOP6_TEAMS}
-    return Stage(name, budget, len(records), plies, sum("reusedFrom" in row for row in records),
-                 _standings(records, team_scores),
+    team_scores = {team: Score.from_counts(totals[team]) for team in schedule.teams}
+    return Stage(schedule, len(records), plies, sum("reusedFrom" in row for row in records),
+                 _standings(schedule, records, team_scores),
                  {key: Score.from_counts(counts) for key, counts in roles.items()},
                  {key: Score.from_counts(counts) for key, counts in matrix.items()}, reasons, stability)
 
 
-def load_stages(root: Path) -> dict[str, Stage]:
-    data = json.loads((HERE / "openings.json").read_text(encoding="utf-8"))
-    openings = {entry["name"] for entry in data["openings"][:TOP6_OPENINGS]}
+def load_stages(root: Path, schedules: tuple[Schedule, ...] | None = None) -> dict[str, Stage]:
+    if schedules is None:
+        data = json.loads((HERE / "openings.json").read_text(encoding="utf-8"))
+        openings = tuple(entry["name"] for entry in data["openings"][:TOP6_OPENINGS])
+        schedules = tuple(Schedule(name, TOP6_TEAMS, budget, openings)
+                          for name, budget in TOP6_BUDGETS.items())
     stages = {}
-    for name, budget in TOP6_BUDGETS.items():
-        path = root / f"{name}.jsonl"
+    for schedule in schedules:
+        path = root / f"{schedule.name}.jsonl"
         try:
-            stages[name] = _summarize(name, budget, _load_records(path, name, budget, openings))
+            stages[schedule.name] = _summarize(schedule, _load_records(path, schedule))
         except (TypeError, ValueError, KeyError) as error:
             raise ValueError(f"{path.name}: {error}") from error
     return stages
