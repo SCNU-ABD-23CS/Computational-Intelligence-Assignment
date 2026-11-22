@@ -9,6 +9,7 @@ from contextlib import ExitStack, contextmanager, redirect_stdout
 from copy import copy
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime
+from functools import wraps
 from io import StringIO
 import json
 import math
@@ -108,12 +109,18 @@ class SearchTrace:
             self.allocation = allocate(board)
             return self.allocation
 
+        @wraps(choose)
         def record_choice(board, is_attacker, deadline, game_history, weights=None):
             self.called = True
             self.is_attacker = is_attacker
             self.history = game_history
             move = choose(board, is_attacker, deadline, game_history, weights)
             self.returned_move = move_pair(move)
+            native = getattr(player, "_native", None)
+            if native is not None and choose is player._native_choice and native.last_search is not None:
+                self.depths.extend(DepthRecord(*iteration) for iteration in native.iterations)
+                self.interrupted_depth = native.interrupted_depth
+                self.interrupted_nodes = native.interrupted_nodes
             return move
 
         def record_depth(board, is_attacker, depth, *args, **kwargs):
@@ -257,6 +264,11 @@ class Game:
         state = self.checkpoints.pop()
         self.referee = state.referee
         self.player = state.player
+        native = getattr(self.player, "_native", None)
+        if native is not None:
+            # The checkpoint shares the scratch arrays. Discard hints from
+            # the abandoned continuation when restoring the real history.
+            native.reset_game()
         self.attackers_turn = state.attackers_turn
         self.remaining = state.remaining
         self.last_move = state.last_move

@@ -113,6 +113,20 @@ class Player:
         self._compute_hash = _import_member("Team19_engine", "compute_hash")
 
         self.weights = _load_weights()
+        self._native = None
+        self._native_choice = None
+        self.native_init_error = None
+        self.warmup_seconds = 0.0
+        native_search = _import_member("Team19_search", "_NativeSearch")
+        if native_search is not None:
+            try:
+                self._native = native_search(_INITIAL_BOARD)
+            except Exception as error:
+                self.native_init_error = error
+            else:
+                self.warmup_seconds = self._native.warmup_seconds
+                self._native_choice = self._native.choose
+                self._choose_best_move = self._native_choice
         self.reset_game()
 
     def reset_game(self) -> None:
@@ -126,6 +140,9 @@ class Player:
         self._opening_replies: set[tuple[tuple[str, ...], ...]] = set()
         # Last exception that forced a fallback move, kept for debugging.
         self.last_error: Exception | None = None
+        self.last_search = None
+        if self._native is not None:
+            self._native.reset_game()
 
     # =================================================
     # Referee entry points
@@ -138,6 +155,7 @@ class Player:
     def _play(self, board: list[list[str]], is_attacker: bool) -> list[list[int]]:
         """Return a move for a playable position and charge the actual time."""
         started = time.perf_counter()
+        self.last_search = None
         position = [list(row) for row in board]
         try:
             return self._select_move(position, is_attacker, started)
@@ -170,16 +188,25 @@ class Player:
         fallback = min(legal)
         step_budget = self._step_budget(position)
         deadline = started + step_budget
-        bookkeeping_deadline = started + self.remaining - _RETURN_RESERVE if step_budget else started
+        search = self._choose_best_move
+        native = (
+            self._native is not None
+            and (search is self._native_choice or getattr(search, "__wrapped__", None) is self._native_choice)
+            and self._native.accepts(self.weights)
+        )
+        if native:
+            bookkeeping_deadline = math.inf
+        else:
+            bookkeeping_deadline = started + self.remaining - _RETURN_RESERVE if step_budget else started
         if seed_initial_history and time.perf_counter() < bookkeeping_deadline:
             self._record_opponent_position([list(row) for row in _INITIAL_BOARD], True)
         if time.perf_counter() < bookkeeping_deadline:
             self._record_opponent_position(position, is_attacker)
 
         chosen = None
-        if self._choose_best_move is not None and time.perf_counter() < deadline:
+        if search is not None and (native or time.perf_counter() < deadline):
             try:
-                result = self._choose_best_move(
+                result = search(
                     [row[:] for row in position], is_attacker, deadline, set(self.history),
                     self.weights,
                 )
@@ -189,6 +216,8 @@ class Player:
                 candidate = self._as_pair(result)
                 if candidate in legal:
                     chosen = candidate
+                    if native:
+                        self.last_search = self._native.last_search
 
         if chosen is None and time.perf_counter() < deadline:
             chosen = self._winning_move(position, is_attacker, legal, deadline)

@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from . import dashboard, overview, report
-from .dashboard import NEW, OLD
+from .dashboard import NATIVE_VERSION, NEW, OLD, PREFIX
 from .dashboard_data import Score
 
 
@@ -113,6 +113,36 @@ class DashboardTests(unittest.TestCase):
         self.assertIn("标准初始棋盘", panel(page, "official"))
         self.assertIn("每方整局 10 秒", panel(page, "fast"))
         self.assertIn("1v1 车轮对照", panel(page, "final"))
+
+    def test_four_version_chart_uses_the_shared_opponents_and_openings(self):
+        rival = "Grandmaster-Numba"
+        archive = []
+        for version in (OLD, PREFIX, NEW):
+            archive.append(dict(game("official", len(archive) + 1, version, rival, None,
+                                     "repeated position"), opening="standard"))
+            archive.append(dict(game("official", len(archive) + 1, rival, version, "A",
+                                     "king captured"), opening="standard"))
+        # Its wins over older versions cannot inflate New's rate against the external rival.
+        archive.append(dict(game("official", len(archive) + 1, NEW, OLD, "A",
+                                 "king captured"), opening="standard"))
+        store_stage(self.root, "official", archive)
+        evolution = "evolution-official"
+        path = store_stage(self.root, evolution, [
+            dict(game(evolution, 1, NATIVE_VERSION, rival, "A", "king captured"), opening="standard"),
+            dict(game(evolution, 2, rival, NATIVE_VERSION, None, "repeated position"), opening="standard"),
+        ])
+        output, stages = dashboard.write_dashboard(self.root)
+        rates = dashboard.load_evolution(self.root, stages)["official"]
+        self.assertEqual((rates[NEW].point_rate, rates[NATIVE_VERSION].point_rate), (0.25, 0.75))
+        page = output.read_text(encoding="utf-8")
+        summary = panel(page, "overview")
+        self.assertIn("Team19 四代进化", summary)
+        self.assertIn("New@91ffcc8", summary)
+        self.assertIn("Team19-v2 · 60 秒官方赛 · 3/4 分 · 75.0%", summary)
+        self.assertEqual(page.count('class="evolution"'), 1)
+        path.write_text(path.read_text().replace('"standard"', '"different"'), encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "different opponent schedule"):
+            dashboard.write_dashboard(self.root)
 
     def test_finals_show_matchups_and_side_rates_without_a_rank(self):
         pair_results = [

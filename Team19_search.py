@@ -8,10 +8,15 @@ The Player adapter uses iterative deepening; experiments can fix the depth.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator
+import ctypes
 from dataclasses import dataclass, field
 import math
+import sys
 import time
-from typing import TYPE_CHECKING
+from typing import NamedTuple, TYPE_CHECKING
+
+import numpy as np
+from numba import njit as _njit
 
 if TYPE_CHECKING:
     from Team19_engine import _SearchPosition
@@ -503,3 +508,453 @@ def choose_best_move(
         if best_move != root_order[0]:
             root_order = [best_move] + [move for move in ordered_moves if move != best_move]
     return [coordinate[:] for coordinate in best_move]
+
+
+# The public functions above keep their original callback and depth contracts.
+# The Player adapter owns a separate compiled workspace for real matches.
+try:
+    from Team19_engine import (
+        _A, _AREA, _BEYOND, _CASTLE, _D, _EDGE, _K, _KING_CASTLE, _MOVE_CAPACITY, _NEAR, _X,
+        _flat, _has_legal, _immediate_win, _legal, _move_list, _pop, _push, _search_position, _winner,
+    )
+    from Team19_eval import (
+        DEFAULT_WEIGHTS as _PYTHON_DEFAULT_WEIGHTS,
+        _NATIVE_DISTANCE, _NATIVE_EDGE_DISTANCE, _native_evaluate, _native_piece_bonus,
+    )
+except ImportError:
+    _NATIVE_AVAILABLE = False
+else:
+    _NATIVE_AVAILABLE = True
+
+
+_MATE = int(WIN_SCORE)
+_Q_LIMIT = 4
+_NATIVE_PLY_SLOTS = _MAX_ITERATIVE_DEPTH + _Q_LIMIT + 2
+_NATIVE_TT_SIZE = 1 << 18
+_NODE_COUNT, _CUTOFFS, _REDUCTIONS, _RESEARCHES, _STOPPED, _EVALUATIONS = range(6)
+
+
+# Read the OS monotonic counter from compiled search, without objmode or a
+# per-node transition back to Python. Deadlines are transferred as durations.
+if sys.platform == "win32":
+    _kernel = ctypes.WinDLL("kernel32")
+    _query_counter = _kernel.QueryPerformanceCounter
+    _query_counter.argtypes = (ctypes.POINTER(ctypes.c_int64),)
+    _query_counter.restype = ctypes.c_int
+    _frequency = ctypes.c_int64()
+    if not _kernel.QueryPerformanceFrequency(ctypes.byref(_frequency)):
+        raise OSError("Cannot read the performance counter frequency")
+    _COUNTER_SCALE = 1.0 / _frequency.value
+    _CLOCK_DTYPE = np.int64
+
+    def _read_native_clock(buffer):
+        _query_counter(buffer.ctypes.data_as(ctypes.POINTER(ctypes.c_int64)))
+        return buffer[0] * _COUNTER_SCALE
+
+    @_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+    def _native_now(buffer):
+        _query_counter(buffer.ctypes)
+        return buffer[0] * _COUNTER_SCALE
+else:
+    _libc = ctypes.CDLL(None)
+    _clock_gettime = _libc.clock_gettime
+    _clock_gettime.argtypes = (ctypes.c_int, ctypes.POINTER(ctypes.c_long))
+    _clock_gettime.restype = ctypes.c_int
+    _CLOCK_MONOTONIC = time.CLOCK_MONOTONIC
+    _CLOCK_DTYPE = np.dtype(ctypes.c_long)
+
+    def _read_native_clock(buffer):
+        _clock_gettime(_CLOCK_MONOTONIC, buffer.ctypes.data_as(ctypes.POINTER(ctypes.c_long)))
+        return float(buffer[0]) + float(buffer[1]) * 1e-9
+
+    @_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+    def _native_now(buffer):
+        _clock_gettime(_CLOCK_MONOTONIC, buffer.ctypes)
+        return buffer[0] + buffer[1] * 1e-9
+
+
+class _NativeWork(NamedTuple):
+    moves: np.ndarray
+    priorities: np.ndarray
+    captured_at: np.ndarray
+    captured_pieces: np.ndarray
+    path: np.ndarray
+    tt_keys: np.ndarray
+    tt_moves: np.ndarray
+    tt_generations: np.ndarray
+    generation: np.ndarray
+    killers: np.ndarray
+    history: np.ndarray
+    queue: np.ndarray
+    seen: np.ndarray
+    scratch: np.ndarray
+    clock: np.ndarray
+    counts: np.ndarray
+    weights: np.ndarray
+    piece_bonus: np.ndarray
+
+
+def _native_work(weights) -> _NativeWork:
+    return _NativeWork(
+        np.empty((_NATIVE_PLY_SLOTS, _MOVE_CAPACITY), dtype=np.int16),
+        np.empty((_NATIVE_PLY_SLOTS, _MOVE_CAPACITY), dtype=np.int32),
+        np.empty((_NATIVE_PLY_SLOTS, 4), dtype=np.int16),
+        np.empty((_NATIVE_PLY_SLOTS, 4), dtype=np.int8),
+        np.empty(_NATIVE_PLY_SLOTS, dtype=np.uint64),
+        np.zeros(_NATIVE_TT_SIZE, dtype=np.uint64),
+        np.full(_NATIVE_TT_SIZE, -1, dtype=np.int16),
+        np.zeros(_NATIVE_TT_SIZE, dtype=np.int64),
+        np.array([0, 1], dtype=np.int64),
+        np.full((_NATIVE_PLY_SLOTS, 2), -1, dtype=np.int16),
+        np.zeros((2, _AREA * _AREA), dtype=np.int32),
+        np.empty(_AREA, dtype=np.int16),
+        np.empty(_AREA, dtype=np.bool_),
+        np.empty(_MOVE_CAPACITY, dtype=np.int16),
+        np.empty(2, dtype=_CLOCK_DTYPE),
+        np.zeros(6, dtype=np.int64),
+        weights,
+        _native_piece_bonus(weights),
+    )
+
+
+@_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+def _native_capture_priority(board, source, target, attacker):
+    priority = 0
+    for direction in range(4):
+        far = _BEYOND[target, direction]
+        if far < 0:
+            continue
+        victim = board[_NEAR[target, direction]]
+        ally = board[far] if far != source else _X if source == _CASTLE else 0
+        if attacker:
+            if victim == _K:
+                if ally == _A or _KING_CASTLE[_NEAR[target, direction]]:
+                    priority += 12000
+            elif victim == _D and (ally == _A or ally == _X or ally == _K and far == _CASTLE):
+                priority += 6500
+        elif victim == _A and (ally == _D or ally == _K or ally == _X):
+            priority += 6000
+    return priority
+
+
+@_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+def _native_seen(played, path, stamp, ply):
+    low, high = 0, len(played)
+    while low < high:
+        mid = (low + high) // 2
+        if played[mid] < stamp:
+            low = mid + 1
+        else:
+            high = mid
+    if low < len(played) and played[low] == stamp:
+        return True
+    for earlier in range(ply):
+        if path[earlier] == stamp:
+            return True
+    return False
+
+
+@_njit(inline="always")
+def _native_tt_hint(stamp, work):
+    slot = int(stamp & np.uint64(_NATIVE_TT_SIZE - 1))
+    if work.tt_generations[slot] >= work.generation[1] and work.tt_keys[slot] == stamp:
+        return int(work.tt_moves[slot])
+    return -1
+
+
+@_njit(inline="always")
+def _native_tt_store(stamp, move, work):
+    slot = int(stamp & np.uint64(_NATIVE_TT_SIZE - 1))
+    work.tt_keys[slot] = stamp
+    work.tt_moves[slot] = move
+    work.tt_generations[slot] = work.generation[0]
+
+
+@_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+def _native_order(board, attacker, king, ply, normal, danger, hint, work):
+    moves, priorities = work.moves[ply], work.priorities[ply]
+    count = _legal(board, attacker, moves)
+    side = 0 if attacker else 1
+    useful = 0
+    for index in range(count):
+        move = moves[index]
+        source, target = divmod(move, _AREA)
+        tactical = _native_capture_priority(board, source, target, attacker)
+        king_contact = attacker and _NATIVE_DISTANCE[king, target] == 1
+        if not normal and not danger and tactical == 0 and not king_contact:
+            continue
+        priority = tactical
+        if board[source] == _K:
+            priority += 220 * (_NATIVE_EDGE_DISTANCE[source] - _NATIVE_EDGE_DISTANCE[target])
+        if normal:
+            if move == hint:
+                priority += 2_000_000
+            elif move == work.killers[ply, 0]:
+                priority += 5000
+            elif move == work.killers[ply, 1]:
+                priority += 4000
+            priority += min(3500, work.history[side, move])
+        moves[useful], priorities[useful] = move, priority
+        useful += 1
+    return useful
+
+
+@_njit(inline="always")
+def _native_score(board, attacker, attackers, defenders, king, work):
+    work.counts[_EVALUATIONS] += 1
+    value = _native_evaluate(board, attacker, attackers, defenders, king, work.weights,
+                             work.queue, work.seen, _NEAR, _EDGE, work.piece_bonus)
+    return value if attacker else -value
+
+
+# The caller owns every array, including the recursive frames. The kernel only
+# returns scalars, so no Numba-managed allocation is needed during recursion.
+@_njit(no_cfunc_wrapper=True, _nrt=False)
+def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
+                  depth, qleft, ply, alpha, beta, deadline, played, work, lmr):
+    counts = work.counts
+    counts[_NODE_COUNT] += 1
+    if counts[_NODE_COUNT] & 511 == 0 and _native_now(work.clock) >= deadline:
+        counts[_STOPPED] = 1
+    if counts[_STOPPED]:
+        return 0, -1
+
+    winner = _winner(attackers, king)
+    if winner:
+        value = _MATE - ply
+        return (value if (winner == _A) == attacker else -value), -1
+    stamp = hash_a if attacker else hash_d
+    if ply and _native_seen(played, work.path, stamp, ply):
+        return 0, -1
+
+    normal = depth > 0
+    if normal or qleft or ply == 1:
+        winning_move = _immediate_win(board, attacker, attackers, king, work.scratch)
+        if winning_move >= 0:
+            return _MATE - ply - 1, int(winning_move)
+    if not normal:
+        if not _has_legal(board, attacker):
+            return 0, -1
+        if qleft == 0:
+            return _native_score(board, attacker, attackers, defenders, king, work), -1
+
+    best, best_move = -2 * _MATE, -1
+    can_reduce = lmr and depth >= 3 and ply > 0 and beta == alpha + 1
+    danger = False
+    if not normal or can_reduce:
+        danger = _immediate_win(board, not attacker, attackers, king, work.scratch) >= 0
+    if not normal and not danger:
+        best = _native_score(board, attacker, attackers, defenders, king, work)
+        if best >= beta:
+            counts[_CUTOFFS] += 1
+            return best, -1
+        alpha = max(alpha, best)
+
+    work.path[ply] = stamp
+    hint = _native_tt_hint(stamp, work) if normal else -1
+    useful = _native_order(board, attacker, king, ply, normal, danger, hint, work)
+    if normal and useful == 0:
+        return 0, -1
+    moves, priorities = work.moves[ply], work.priorities[ply]
+    captured_at, captured_pieces = work.captured_at[ply], work.captured_pieces[ply]
+    child_depth = max(0, depth - 1)
+    child_qleft = qleft if normal else qleft - 1
+    first = True
+    for index in range(useful):
+        rank = index
+        for sibling in range(index + 1, useful):
+            if priorities[sibling] > priorities[rank]:
+                rank = sibling
+        moves[index], moves[rank] = moves[rank], moves[index]
+        priorities[index], priorities[rank] = priorities[rank], priorities[index]
+        move = np.int64(moves[index])
+        source, target = divmod(move, _AREA)
+        ha, hd, a, d, k, captured = _push(board, move, hash_a, hash_d, attackers, defenders,
+                                           king, captured_at, captured_pieces)
+        if not normal and not danger and captured == 0:
+            if _immediate_win(board, attacker, a, k, work.scratch) < 0:
+                _pop(board, move, captured_at, captured_pieces, captured)
+                continue
+
+        trial_depth = child_depth
+        if (can_reduce and index >= 4 and not danger and captured == 0 and k == king
+                and move != hint and move != work.killers[ply, 0] and move != work.killers[ply, 1]
+                and _NATIVE_DISTANCE[king, source] > 2 and _NATIVE_DISTANCE[king, target] > 2
+                and abs(alpha) < _MATE - _NATIVE_PLY_SLOTS
+                and _immediate_win(board, attacker, a, k, work.scratch) < 0):
+            counts[_REDUCTIONS] += 1
+            trial_depth -= 1
+
+        narrow = not first
+        while True:
+            child, _ = _native_visit(
+                board, not attacker, ha, hd, a, d, k, trial_depth, child_qleft, ply + 1,
+                -alpha - 1 if narrow else -beta, -alpha, deadline, played, work, lmr,
+            )
+            if counts[_STOPPED]:
+                break
+            if trial_depth < child_depth and -child > alpha:
+                counts[_RESEARCHES] += 1
+                trial_depth = child_depth
+            elif narrow and alpha < -child < beta:
+                narrow = False
+            else:
+                break
+        first = False
+        _pop(board, move, captured_at, captured_pieces, captured)
+        if counts[_STOPPED]:
+            return 0, -1
+        value = -child
+        if value > best:
+            best, best_move = value, move
+        alpha = max(alpha, best)
+        if alpha >= beta or best == _MATE - ply - 1:
+            counts[_CUTOFFS] += index + 1 < useful
+            if normal and captured == 0 and best != _MATE - ply - 1:
+                if move != work.killers[ply, 0]:
+                    work.killers[ply, 1] = work.killers[ply, 0]
+                    work.killers[ply, 0] = move
+                side = 0 if attacker else 1
+                work.history[side, move] += depth * depth
+            break
+    if normal and best_move >= 0:
+        _native_tt_store(stamp, best_move, work)
+    return best, best_move
+
+
+def _native_position(board):
+    # The Python path already has a compact root scan. Use it on the input
+    # board so no separate standalone JIT dispatch is needed here each turn.
+    root = _search_position(board)
+    king = -1 if root.king is None else root.king[0] * 9 + root.king[1]
+    return _flat(board), (np.uint64(root.attacker_hash), np.uint64(root.defender_hash),
+                          root.attackers, root.defenders, king)
+
+
+@dataclass(frozen=True)
+class _NativeTelemetry:
+    depth: int
+    nodes: int
+    score: float | None
+    fallback: bool
+    reductions: int = 0
+    reduced_researches: int = 0
+
+
+class _NativeSearch:
+    """A single player's per-game hints and independently timed search."""
+
+    def __init__(self, initial_board, weights=None):
+        if not _NATIVE_AVAILABLE:
+            raise ImportError("The compiled rules or evaluator are unavailable")
+        from Team19_weights import native_weights
+
+        self.work = _native_work(native_weights(weights))
+        self.legacy_weights = tuple(_PYTHON_DEFAULT_WEIGHTS)
+        self.last_search = None
+        self.iterations = []
+        self.interrupted_depth = self.interrupted_nodes = None
+        started = time.perf_counter()
+        self.warmup(initial_board)
+        self.warmup_seconds = time.perf_counter() - started
+        self.reset_game()
+
+    def warmup(self, board):
+        flat, state = _native_position(board)
+        # The large recursive kernel has one signature for both sides, every
+        # depth, and all search modes. Use it without a timed cutoff here.
+        self.work.generation[0] += 1
+        self._iteration(flat, True, state, 1, 0, -2 * _MATE, 2 * _MATE,
+                        math.inf, np.empty(0, dtype=np.uint64), False)
+
+    def reset_game(self):
+        self.work.generation[1] = self.work.generation[0] + 1
+        self.reset_trace()
+
+    def reset_trace(self):
+        self.last_search = None
+        self.iterations.clear()
+        self.interrupted_depth = self.interrupted_nodes = None
+
+    def accepts(self, weights):
+        return weights is None or tuple(weights) == self.legacy_weights
+
+    def _iteration(self, flat, side, state, depth, qleft, alpha, beta, deadline, played, lmr):
+        return _native_visit(flat, side, *state, depth, qleft, 0, alpha, beta,
+                             deadline, played, self.work, lmr)
+
+    def choose(self, board: Board, is_attacker: bool, deadline: float,
+               game_history: set[int], weights: Weights = None) -> Move:
+        self.reset_trace()
+        if not self.accepts(weights):
+            return choose_best_move(board, is_attacker, deadline, game_history, weights)
+        work = self.work
+        flat, state = _native_position(board)
+        played = np.asarray(sorted(game_history), dtype=np.uint64)
+        work.generation[0] += 1
+        work.killers.fill(-1)
+        work.history.fill(0)
+        work.counts.fill(0)
+        now = time.perf_counter()
+        available = max(0.0, deadline - now)
+        search_time = available - min(0.004, available * 0.10)
+        cutoff = _read_native_clock(work.clock) + search_time
+        soft_deadline = now + search_time
+
+        best, score = -1, 0
+        for depth in range(1, _MAX_ITERATIVE_DEPTH + 1):
+            if depth > 1 and time.perf_counter() >= soft_deadline:
+                break
+            started = time.perf_counter()
+            nodes, cutoffs = int(work.counts[_NODE_COUNT]), int(work.counts[_CUTOFFS])
+            evaluated = int(work.counts[_EVALUATIONS])
+            reduced = int(work.counts[_REDUCTIONS])
+            # The first complete pass is bounded to one full move and exact
+            # immediate threats. It runs even if the deeper-search time is zero.
+            first = depth == 1
+            qleft = 0 if first else _Q_LIMIT
+            stop_at = math.inf if first else cutoff
+            alpha, beta = (-2 * _MATE, 2 * _MATE) if first else (score - 850, score + 850)
+            value, move = self._iteration(
+                flat, is_attacker, state, depth, qleft, alpha, beta, stop_at, played, True,
+            )
+            if not first and not work.counts[_STOPPED] and (value <= alpha or value >= beta):
+                value, move = self._iteration(
+                    flat, is_attacker, state, depth, qleft, -2 * _MATE, 2 * _MATE,
+                    stop_at, played, True,
+                )
+            # Selectivity may hide a later defence. Certify mate scores with
+            # the normal depth in every branch before the early-exit decision.
+            if (not work.counts[_STOPPED] and abs(value) >= _MATE - _NATIVE_PLY_SLOTS
+                    and work.counts[_REDUCTIONS] > reduced):
+                value, move = self._iteration(
+                    flat, is_attacker, state, depth, qleft, -2 * _MATE, 2 * _MATE,
+                    stop_at, played, False,
+                )
+            if work.counts[_STOPPED]:
+                self.interrupted_depth = depth
+                self.interrupted_nodes = int(work.counts[_NODE_COUNT]) - nodes
+                break
+            if move < 0:
+                if first:
+                    raise ValueError("Native search requires a nonterminal board with legal moves")
+                raise RuntimeError("A completed native depth did not produce a move")
+
+            score, best = value, move
+            terminal = _MATE - abs(value) if abs(value) >= _MATE - _NATIVE_PLY_SLOTS else None
+            display = math.copysign(WIN_SCORE, value) if terminal is not None else float(value)
+            display = display if is_attacker else -display
+            result = SearchResult(_move_list(move), display,
+                                  int(work.counts[_NODE_COUNT]) - nodes,
+                                  int(work.counts[_CUTOFFS]) - cutoffs, terminal)
+            self.iterations.append((depth, result, time.perf_counter() - started,
+                                    bool(work.counts[_EVALUATIONS] > evaluated)))
+            if terminal is not None:
+                break
+
+        depth, result, _, _ = self.iterations[-1]
+        self.last_search = _NativeTelemetry(
+            depth, int(work.counts[_NODE_COUNT]), result.score, False,
+            int(work.counts[_REDUCTIONS]), int(work.counts[_RESEARCHES]),
+        )
+        return _move_list(best)

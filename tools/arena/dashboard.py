@@ -8,12 +8,13 @@ from pathlib import Path
 import re
 
 from . import HERE
-from .dashboard_data import FORFEITS, STAGES, Score, Stage, load_stages
+from .dashboard_data import FORFEITS, HISTORICAL_VERSIONS, NATIVE_VERSION, STAGES
+from .dashboard_data import Score, Stage, load_evolution, load_stages
 
 
 RESULTS = HERE / "results"
 NEW, PREFIX, OLD = "Team19-New", "Team19-PreFix", "Team19-Old"
-GENERATIONS = (OLD, PREFIX, NEW)
+GENERATIONS = (*HISTORICAL_VERSIONS, NATIVE_VERSION)
 ROUND_LABELS = {"official": "60 秒官方赛", "fast": "10 秒快棋"}
 STAGE_INTROS = {
     "official": "标准开局换边，按课程公式折算模拟分",
@@ -21,7 +22,8 @@ STAGE_INTROS = {
     "final": "新版与外部强敌逐队换边对照",
 }
 TEAM_LABELS = {
-    NEW: ("New", "当前优化版", "new"),
+    NEW: ("New", "Numba 升级前版", "new"),
+    NATIVE_VERSION: ("v2", "当前提交版", "v2"),
     PREFIX: ("PreFix", "估值修复前版", "prefix"),
     OLD: ("Old", "早期历史基线", "old"),
     "Grandmaster-Numba": ("Numba", "编译加速强敌", ""),
@@ -327,36 +329,47 @@ def _roles(stage: Stage):
     return _section("执攻与执守", "Attack and defence", legend + chart, note)
 
 
-def _evolution(stages: dict[str, Stage]):
+def _evolution(stages: dict[str, Stage], comparison):
     series = []
+    versions = GENERATIONS if comparison else HISTORICAL_VERSIONS
+    title = "Team19 四代进化" if comparison else "Team19 三代进化"
     for name, label, color in (("official", "60 秒官方赛", "official"), ("fast", "10 秒快棋", "fast")):
-        if stage := stages.get(name):
-            rates = {team.name: team.score.point_rate for team in stage.teams if team.name in GENERATIONS}
-            if rates:
-                series.append((label, color, rates))
+        if comparison:
+            scores = comparison.get(name, {})
+        else:
+            stage = stages.get(name)
+            scores = {team.name: team.score for team in stage.teams if team.name in versions} if stage else {}
+        if scores:
+            series.append((label, color, scores))
     if not series:
-        return _section("Team19 三代进化", "Team19 progression",
+        return _section(title, "Team19 progression",
                         '<p class="empty-figure">载入标准开局赛或快棋战报后可查看三代得分率。</p>')
 
+    width = 656 if comparison else 544
+    right = width - 18
+    group_width = (right - 58) / len(versions)
     y_base, plot_height = 182, 128
     pieces = []
     for tick in (0, 25, 50, 75, 100):
         y = y_base - plot_height * tick / 100
-        pieces.append(f'<line class="grid-line" x1="58" x2="526" y1="{y}" y2="{y}"/>'
+        pieces.append(f'<line class="grid-line" x1="58" x2="{right}" y1="{y}" y2="{y}"/>'
                       f'<text class="axis-muted" x="48" y="{y + 4}" text-anchor="end">{tick}%</text>')
-    for i, name in enumerate(GENERATIONS):
-        center = 130 + 158 * i
+    for i, name in enumerate(versions):
+        center = 58 + (i + 0.5) * group_width
         short, _, variant = _label(name)
+        if name == NEW and comparison:
+            short = "New@91ffcc8"
         pieces.append(f'<text class="axis-name {variant}" x="{center}" y="213" '
                       f'text-anchor="middle">{short}</text>')
-        for j, (label, color, rates) in enumerate(series):
-            if name not in rates:
+        for j, (label, color, scores) in enumerate(series):
+            if name not in scores:
                 continue
-            rate = rates[name]
+            score = scores[name]
+            rate = score.point_rate
             x = center + (j - (len(series) - 1) / 2) * 51
             height = rate * plot_height
             y = y_base - height
-            tip = f"{name} · {label} · {_percent(rate)} point rate"
+            tip = f"{name} · {label} · {score.points}/{2 * score.games} 分 · {_percent(rate)}"
             pieces.append(
                 f'<g class="{color}" tabindex="0" aria-label="{tip}"><title>{tip}</title>'
                 f'<rect class="fill" x="{x - 19}" y="{y:.2f}" width="38" height="{height:.2f}" rx="5"/>'
@@ -364,10 +377,13 @@ def _evolution(stages: dict[str, Stage]):
             )
     legend = (f'<div class="legend">'
               f'{"".join(f"<span class={color}>{label}</span>" for label, color, _ in series)}</div>')
-    chart = ('<svg class="evolution" viewBox="0 0 544 226" role="img" aria-label="Team19 progression">'
+    chart = (f'<svg class="evolution" viewBox="0 0 {width} 226" role="img" aria-label="Team19 progression">'
              f'<title>Team19 progression · 各赛段得分率</title>{"".join(pieces)}</svg>')
-    return _section("Team19 三代进化", "Team19 progression", legend + chart,
-                    "按历史版本先后排列，比较两个预算档的得分率。")
+    note = "按历史版本先后排列，比较两个预算档的得分率。"
+    if comparison:
+        games = "、".join(f"{label}每版 {scores[NATIVE_VERSION].games} 局" for label, _, scores in series)
+        note = f"四代均对阵原联赛同一批外部队伍，使用相同开局并交换攻守。{games}。"
+    return _section(title, "Team19 progression", legend + chart, note)
 
 
 def _ending_chart(reasons: Counter):
@@ -452,7 +468,7 @@ def _quick_links(stages: dict[str, Stage]):
     return _section("赛段速览", "Stage guide", f'<div class="duels">{"".join(cards)}</div>')
 
 
-def _overview_panel(stages: dict[str, Stage]):
+def _overview_panel(stages: dict[str, Stage], evolution):
     included = list(stages.values())
     rounds = [stages[key] for key in ROUND_LABELS if key in stages]
     cards = [_games_metric(included), *_round_version_metrics(rounds)]
@@ -460,8 +476,9 @@ def _overview_panel(stages: dict[str, Stage]):
         cards.extend((_new_points_metric(new.score), _role_metric(final)))
     cards.append(_forfeits_metric(included))
     content = (_metrics(cards) + _quick_links(stages)
-               + f'<div class="chart-pair">{_evolution(stages)}{_stability(included)}</div>')
-    return _panel("overview", "联赛总览", "", content)
+               + f'<div class="chart-pair">{_evolution(stages, evolution)}{_stability(included)}</div>')
+    archive = "<p>九队联赛记录的是 New@91ffcc8 时的赛果。</p>" if evolution else ""
+    return _panel("overview", "联赛总览", archive, content)
 
 
 def _stage_panel(stage: Stage, numba_nps: int | None):
@@ -483,7 +500,7 @@ def _panel(key, title, detail, content):
     )
 
 
-def render(stages: dict[str, Stage], numba_nps: int | None = None) -> str:
+def render(stages: dict[str, Stage], numba_nps: int | None = None, *, evolution=None) -> str:
     css = (HERE / "dashboard.css").read_text(encoding="utf-8")
     script = (HERE / "dashboard.js").read_text(encoding="utf-8")
     if stages:
@@ -494,7 +511,7 @@ def render(stages: dict[str, Stage], numba_nps: int | None = None) -> str:
                         f'aria-selected="{str(selected).lower()}" tabindex="{0 if selected else -1}">'
                         f'{label}</button>')
         navigation = f'<nav class="tabs" role="tablist" aria-label="联赛赛段">{"".join(tabs)}</nav>'
-        panels = _overview_panel(stages) + "".join(
+        panels = _overview_panel(stages, evolution) + "".join(
             _stage_panel(stage, numba_nps) for stage in stages.values()
         )
     else:
@@ -535,7 +552,9 @@ def _numba_throughput(results_dir: Path) -> int | None:
 
 def write_dashboard(results_dir: Path = RESULTS, output: Path | None = None):
     stages = load_stages(results_dir)
-    document = render(stages, _numba_throughput(results_dir) if "final" in stages else None)
+    evolution = load_evolution(results_dir, stages)
+    document = render(stages, _numba_throughput(results_dir) if "final" in stages else None,
+                      evolution=evolution)
     output = output if output is not None else results_dir / "dashboard.html"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(document, encoding="utf-8")

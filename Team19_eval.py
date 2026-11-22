@@ -10,6 +10,9 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 
+import numpy as np
+from numba import njit as _njit
+
 
 Board = list[list[str]]
 
@@ -247,3 +250,118 @@ def _cell(board: Board, row: int, column: int) -> str | None:
     if row < 0 or column < 0 or row >= len(board) or column >= len(board[row]):
         return None
     return board[row][column]
+
+
+# Native search uses the same encoding as the rules kernel. Geometry is passed
+# by the caller so the public evaluator can still be used independently.
+_NATIVE_A, _NATIVE_D, _NATIVE_X = 1, 2, 4
+_NATIVE_EDGE_DISTANCE = np.array(
+    [min(r, c, 8 - r, 8 - c) for r in range(9) for c in range(9)], dtype=np.int8,
+)
+_NATIVE_DISTANCE = np.array(
+    [[abs(a // 9 - b // 9) + abs(a % 9 - b % 9) for b in range(81)]
+     for a in range(81)], dtype=np.int8,
+)
+
+(
+    _ATTACKER_OPEN, _ATTACKER_LATE, _DEFENDER_MATERIAL, _LOW_ATTACKERS,
+    _ESCAPE_BASE, _ESCAPE_ONE, _ESCAPE_TWO, _ESCAPE_THREE, _ESCAPE_FOUR, _ESCAPE_LONG,
+    _KING_MOBILITY, _KING_EDGE, _DIRECT_ESCAPE_DEFENCE, _DIRECT_ESCAPE_ATTACK,
+    _PST_INTERIOR, _PST_EDGE, _ATTACKER_NEAR, _ATTACKER_ADJACENT, _GUARD_NEAR,
+    _GUARD_ACTIVE, _BLOCKED_DIRECTIONS, _RAY_PRESSURE,
+) = range(22)
+
+
+@_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+def _native_escape(board, king, queue, seen, near, edge):
+    seen.fill(False)
+    seen[king] = True
+    queue[0] = king
+    length = 1
+    head = 0
+    distance = 1
+    mobility = 0
+    while head < length:
+        end = length
+        route = False
+        while head < end:
+            square = queue[head]
+            head += 1
+            for direction in range(4):
+                target = near[square, direction]
+                while target >= 0:
+                    cell = board[target]
+                    if cell == 0:
+                        mobility += distance == 1
+                        if edge[target]:
+                            route = True
+                            if distance > 1:
+                                return distance, mobility
+                        elif not seen[target]:
+                            seen[target] = True
+                            queue[length] = target
+                            length += 1
+                    elif cell != _NATIVE_X and target != king:
+                        break
+                    target = near[target, direction]
+        if route:
+            return distance, mobility
+        distance += 1
+    return 0, mobility
+
+
+def _native_piece_bonus(weights):
+    """Precompute the positional terms that depend only on two squares."""
+    near_king = np.maximum(0, 4 - _NATIVE_DISTANCE)
+    attacking = (
+        weights[_PST_INTERIOR] * _NATIVE_EDGE_DISTANCE
+        + weights[_PST_EDGE] * (_NATIVE_EDGE_DISTANCE == 0)
+        + weights[_ATTACKER_NEAR] * near_king
+        + weights[_ATTACKER_ADJACENT] * (_NATIVE_DISTANCE == 1)
+    )
+    return np.stack((attacking, weights[_GUARD_NEAR] * near_king))
+
+
+@_njit(fastmath={"contract"}, no_cfunc_wrapper=True)
+def _native_evaluate(board, attacker, attackers, defenders, king, weights, queue, seen,
+                     near, edge, piece_bonus):
+    """Score an ongoing flat position from the attackers' perspective."""
+    distance, mobility = _native_escape(board, king, queue, seen, near, edge)
+    material = weights[_ATTACKER_OPEN if defenders >= 5 else _ATTACKER_LATE] * attackers
+    score = material + weights[_DEFENDER_MATERIAL] * defenders
+    score += weights[_LOW_ATTACKERS] * max(0, 6 - attackers)
+    score += weights[_ESCAPE_BASE + min(5, distance)]
+    score += weights[_KING_MOBILITY] * mobility
+    score += weights[_KING_EDGE] * (4 - _NATIVE_EDGE_DISTANCE[king])
+    if distance == 1:
+        score += weights[_DIRECT_ESCAPE_ATTACK if attacker else _DIRECT_ESCAPE_DEFENCE]
+
+    for square in range(81):
+        cell = board[square]
+        if cell == _NATIVE_A:
+            score += piece_bonus[0, king, square]
+        elif cell == _NATIVE_D:
+            score += piece_bonus[1, king, square]
+            for direction in range(4):
+                target = near[square, direction]
+                if target >= 0 and board[target] == 0:
+                    score += weights[_GUARD_ACTIVE]
+                    break
+
+    if weights[_BLOCKED_DIRECTIONS] != 0 or weights[_RAY_PRESSURE] != 0:
+        closed, pressure = 0, 0
+        for direction in range(4):
+            square = near[king, direction]
+            while square >= 0:
+                cell = board[square]
+                if cell == _NATIVE_A:
+                    closed += 1
+                    pressure += 9 - _NATIVE_DISTANCE[king, square]
+                    break
+                if cell != 0 and cell != _NATIVE_X:
+                    break
+                square = near[square, direction]
+        score += closed * weights[_BLOCKED_DIRECTIONS] + pressure * weights[_RAY_PRESSURE]
+
+    # Keep evolved heuristics distinct from the search's integer mate scores.
+    return int(round(min(80_000.0, max(-80_000.0, score))))

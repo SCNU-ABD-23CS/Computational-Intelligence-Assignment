@@ -2,7 +2,7 @@
 
 from collections import Counter, defaultdict
 import csv
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from math import isclose, isfinite
 from pathlib import Path
@@ -10,6 +10,8 @@ import re
 
 
 STAGES = {"official": "60 秒官方原味赛", "fast": "10 秒快棋全循环", "final": "60 秒强敌对照"}
+HISTORICAL_VERSIONS = ("Team19-Old", "Team19-PreFix", "Team19-New")
+NATIVE_VERSION = "Team19-v2"
 FORFEITS = ("timeout", "illegal move", "exception")
 STABILITY_FIELDS = (*FORFEITS, "fallbacks", "internalErrors")
 TABLES = ("standings", "roles", "matrix", "stability")
@@ -68,6 +70,7 @@ class Stage:
     matrix: dict[tuple[str, str], Score]
     reasons: Counter
     stability: dict[str, Counter]
+    pair_schedule: dict[tuple[str, str], Counter] = field(default_factory=dict)
 
 
 def _read_table(path: Path) -> dict:
@@ -93,6 +96,7 @@ def _load_stage(root: Path, name: str) -> Stage:
     plies = 0
     reasons = Counter()
     totals, roles, pairs, pair_roles, stability = (defaultdict(Counter) for _ in range(5))
+    pair_schedule = defaultdict(Counter)
     with (root / f"{name}.jsonl").open(encoding="utf-8") as source:
         for line in source:
             game = json.loads(line)
@@ -118,6 +122,9 @@ def _load_stage(root: Path, name: str) -> Stage:
                 roles[team, side][points] += 1
                 pairs[team, opponent][points] += 1
                 pair_roles[team, opponent, side][points] += 1
+                if "opening" in game:
+                    history = tuple(turn["positionAfter"]["hash"] for turn in game["prefix"])
+                    pair_schedule[team, opponent][side, game["opening"], history] += 1
                 if reason in FORFEITS and points == 0:
                     stability[team][reason] += 1
 
@@ -166,7 +173,7 @@ def _load_stage(root: Path, name: str) -> Stage:
     return Stage(name, len(ids), scheduled, plies, sorted(teams, key=lambda team: (team.rank, team.name)),
                  {key: Score.from_points(value) for key, value in roles.items()},
                  {key: Score.from_points(value) for key, value in pair_roles.items()},
-                 matrix, reasons, dict(stability))
+                 matrix, reasons, dict(stability), dict(pair_schedule))
 
 
 def load_stages(root: Path) -> dict[str, Stage]:
@@ -180,3 +187,42 @@ def load_stages(root: Path) -> dict[str, Stage]:
         except (KeyError, TypeError, ValueError, csv.Error) as error:
             raise ValueError(f"{name}: {error}") from error
     return stages
+
+
+def load_evolution(root: Path, historical: dict[str, Stage]) -> dict[str, dict[str, Score]]:
+    """Compare the four versions against the same external opponents."""
+    rates = {}
+    for name in ("official", "fast"):
+        past = historical.get(name)
+        version_stage = f"evolution-{name}"
+        if past is None or not (root / f"{version_stage}.jsonl").is_file() or not all(
+            (root / version_stage / f"{table}.csv").is_file() for table in TABLES
+        ):
+            continue
+        current = _load_stage(root, version_stage)
+        past_names = {team.name for team in past.teams}
+        new_names = {team.name for team in current.teams}
+        opponents = past_names.difference(HISTORICAL_VERSIONS)
+        if (not set(HISTORICAL_VERSIONS) <= past_names or not opponents
+                or new_names != {*opponents, NATIVE_VERSION}):
+            raise ValueError(f"{version_stage}: the four versions need a common opponent set")
+        if past.games != past.scheduled or current.games != current.scheduled:
+            continue
+
+        against_each = 2 if name == "official" else 12
+        scores = {}
+        for version in (*HISTORICAL_VERSIONS, NATIVE_VERSION):
+            origin = current if version == NATIVE_VERSION else past
+            results = [origin.matrix.get((version, opponent), Score()) for opponent in opponents]
+            if any(entry.games != against_each for entry in results) or any(
+                not origin.pair_schedule.get((version, opponent))
+                or origin.pair_schedule[version, opponent] != current.pair_schedule.get(
+                    (NATIVE_VERSION, opponent)
+                )
+                for opponent in opponents
+            ):
+                raise ValueError(f"{version_stage}: {version} has a different opponent schedule")
+            scores[version] = Score(sum(row.wins for row in results), sum(row.draws for row in results),
+                                    sum(row.losses for row in results))
+        rates[name] = scores
+    return rates

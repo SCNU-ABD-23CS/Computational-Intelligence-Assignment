@@ -50,6 +50,10 @@ TEAMS = {
 }
 LEAGUE = tuple(name for name in TEAMS if name != "RandomBot")
 EXTERNAL = LEAGUE[3:]
+TEAMS.update({
+    "Team19-91ffcc8": Team(".snapshots.v_91ffcc8.Team19", ".snapshots.v_91ffcc8.Team19_search"),
+    "Team19-v2": Team("Team19", "Team19_search"),
+})
 
 
 @dataclass(frozen=True)
@@ -181,10 +185,13 @@ class ObservedPlayer:
             record["playerRemaining"] = getattr(self.player, "remaining", None)
 
 
-def _player(name, seed, starting, side):
+def _player(name, seed, starting, side, factory=None):
     entrant = TEAMS[name]
-    module = import_module(entrant.module, __package__)
-    player = module.Player() if entrant.search else module.Player(seed=seed)
+    if factory is None:
+        module = import_module(entrant.module, __package__)
+        player = module.Player() if entrant.search else module.Player(seed=seed)
+    else:
+        player = factory()
     reset = getattr(player, "reset_game", None)
     if reset is not None:
         reset()
@@ -220,7 +227,7 @@ def _reason(game, messages):
     raise RuntimeError(f"Unrecognized referee outcome: {messages!r}")
 
 
-def run_match(match: Match) -> dict:
+def run_match(match: Match, *, factories=None) -> dict:
     started = datetime.now(UTC).isoformat()
     game = ObservedReferee()
     opening = start(match.opening, game)
@@ -235,7 +242,8 @@ def run_match(match: Match) -> dict:
         observers = []
         for side, name in ((True, match.attacker), (False, match.defender)):
             begin = time.perf_counter()
-            player = _player(name, seed, opening, side)
+            factory = factories.get(name) if factories else None
+            player = _player(name, seed, opening, side, factory)
             init_time["A" if side else "D"] = time.perf_counter() - begin
             observer = ObservedPlayer(name, player, attempts, (game, preserved) if side else None)
             observer.observe_search(stack)
@@ -267,7 +275,7 @@ def run_match(match: Match) -> dict:
     }
 
 
-def _fingerprint(stage: str, matches: list[Match]) -> str:
+def _fingerprint(stage: str, matches: list[Match], extra=None) -> str:
     root = Path(Tablut.__file__).resolve().parent
     paths = [root / "Tablut.py", *root.glob("Team19*.py")]
     for name in sorted({name for game in matches for name in (game.attacker, game.defender)}):
@@ -283,6 +291,8 @@ def _fingerprint(stage: str, matches: list[Match]) -> str:
         paths.append(HERE / "bots" / "numba_rules.py")
     payload = [SCHEMA, stage, [asdict(match) for match in matches],
                sorted({hashlib.sha256(file.read_bytes()).hexdigest() for file in paths})]
+    if extra is not None:
+        payload.append(extra)
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
@@ -352,30 +362,36 @@ def select_bosses() -> list[str]:
     ))[:3]
 
 
-def run(args) -> None:
-    matches = fixture_for(args)
-    run_id = args.run_id or (f"duel-{args.opponent}-{args.budget:g}" if args.stage == "duel"
-                              else args.stage)
+def run_schedule(matches, run_id, stage, *, resume=False, limit=None, factories=None,
+                 fingerprint_extra=None) -> Path:
+    """Run one fixture list serially and keep its results resumable."""
     if not re.fullmatch(r"[A-Za-z0-9_-]+", run_id):
         raise ValueError("Invalid run identifier")
     RESULTS.mkdir(exist_ok=True)
     path = RESULTS / f"{run_id}.jsonl"
-    fingerprint = _fingerprint(args.stage, matches)
+    fingerprint = _fingerprint(stage, matches, fingerprint_extra)
     with _writer_lock(RESULTS / "arena"), path.open("a+b") as stream:
-        if stream.tell() and not args.resume:
+        if stream.tell() and not resume:
             raise ValueError(f"{path.name} already exists. Use --resume or another --run-id.")
         done = _read_finished(stream, fingerprint, {game.id for game in matches})
         print(f"{run_id} | {len(done)}/{len(matches)} recorded | workers=1", flush=True)
         pending = [game for game in matches if game.id not in done]
-        for idx, match in enumerate(pending[:args.limit], len(done) + 1):
-            row = run_match(match)
-            row.update(schedule=fingerprint, stage=args.stage, scheduledGames=len(matches))
+        for idx, match in enumerate(pending[:limit], len(done) + 1):
+            row = run_match(match, factories=factories) if factories else run_match(match)
+            row.update(schedule=fingerprint, stage=stage, scheduledGames=len(matches))
             stream.write((json.dumps(row, separators=(",", ":"), allow_nan=False) + "\n").encode())
             stream.flush()
             os.fsync(stream.fileno())
             winner = row["teams"].get(row["winner"], "draw")
             print(f"{idx}/{len(matches)} {match.id} | {winner} | {row['reason']} | "
                   f"{row['remaining']['A']:.3f}/{row['remaining']['D']:.3f}s remaining", flush=True)
+    return path
+
+
+def run(args) -> None:
+    run_id = args.run_id or (f"duel-{args.opponent}-{args.budget:g}" if args.stage == "duel"
+                              else args.stage)
+    run_schedule(fixture_for(args), run_id, args.stage, resume=args.resume, limit=args.limit)
 
 
 def main() -> None:

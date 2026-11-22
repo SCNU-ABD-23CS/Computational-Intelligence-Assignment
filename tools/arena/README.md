@@ -54,11 +54,27 @@ python -B -m tools.arena.dashboard
 双击 `tools/arena/results/dashboard.html` 即可离线打开，也可把这个文件单独发给队友。
 用页顶标签或总览卡片切换赛段。点击「打印视图」可打印当前赛段或另存为 PDF。
 
-总览汇总已加载赛段的对局、终局与稳定性，并比较 Team19 三代得分率。
+总览汇总已加载赛段的对局、终局与稳定性。有四代对照数据时，按相同外部对手、开局和执棋方比较得分率。
 循环赛交手热力图按得分率着色，和棋贡献 1 分。强敌赛按对手展示新版的换边结果。
 
 可用 `--results-dir` 指定赛果目录，用 `--output` 指定生成位置。
 `overview` 在输出原有战报后刷新看板，可用 `--no-dashboard` 跳过刷新。
+
+## v2 权重与四代对照
+
+根目录 README 提供训练、接力和验证命令。训练使用固定开局及实战中局的 D3/D4 对局，适应度侧重攻方和对 Grandmaster 的得分。两项新增射线特征采用绝对变异步长，初始权重为零时也会探索。训练记录与候选 JSON 写入本地 `results/`。
+
+验证冻结两份权重并生成另一组开局。候选与默认版、Grandmaster 的对比各包含 12 个开局换边，在 10 秒和 60 秒档串行执行。进化权重的更新依据独立对赛结果。
+首轮热启动向量保存在 `results/team19-v2-hot-weights.json`。复跑首轮对照时可用 `--baseline` 指定它，并用独立的 `--run-id` 保存新赛果。
+
+```powershell
+python -B -m tools.arena.export_snapshots --version v_91ffcc8
+python -B -m tools.arena.evolution --workers 1 --resume
+python -B -m tools.arena.dashboard
+python -B -m tools.arena.verify_submission
+```
+
+四代图使用前三代在历史联赛对六支外部队伍的成绩，以及 v2 按相同赛制复跑的 12 局标准赛和 72 局快棋。只读冒烟在独立目录用官方裁判完成 10 秒和 60 秒对局。
 
 ## 回看棋谱
 
@@ -90,6 +106,6 @@ Grandmaster-Numba 在创建选手时运行一次初始盘面的 D1 搜索完成�
 最终盘面。对称等价局面只保留一个。
 
 `python -B -m tools.arena.openings` 可重新生成开局库。
-`python -B -m tools.arena.export_snapshots` 从两个固定 Git 提交导出历史版本，
+`python -B -m tools.arena.export_snapshots` 从三个固定 Git 提交导出历史版本，
 仅调整模块间导入，并记录导出前的文件哈希。参赛时每个版本都用独立包名，
 共用同一个官方裁判模块和时限。
