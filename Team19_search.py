@@ -17,6 +17,11 @@ from typing import NamedTuple, TYPE_CHECKING
 
 import numpy as np
 from numba import njit as _njit
+from Team19_tt import (
+    BoundTable, HINT as _TT_HINT, TT_SIZE as _NATIVE_TT_SIZE, allocate_table,
+    classify_bound as _tt_flag, cutoff as _tt_cutoff, seen as _native_seen,
+    lookup as _tt_lookup, next_context, remember as _tt_store,
+)
 
 if TYPE_CHECKING:
     from Team19_engine import _SearchPosition
@@ -530,10 +535,9 @@ else:
 _MATE = int(WIN_SCORE)
 _Q_LIMIT = 4
 _NATIVE_PLY_SLOTS = _MAX_ITERATIVE_DEPTH + _Q_LIMIT + 2
-_NATIVE_TT_SIZE = 1 << 18
 _ATTACKER_REPETITION_SCORE = -3000
 _SIEGE_SCORE_THRESHOLD = 7500
-_NODE_COUNT, _CUTOFFS, _REDUCTIONS, _RESEARCHES, _STOPPED, _EVALUATIONS = range(6)
+_NODE_COUNT, _CUTOFFS, _REDUCTIONS, _RESEARCHES, _STOPPED, _EVALUATIONS, _REPETITIONS = range(7)
 
 
 # Read the OS monotonic counter from compiled search, without objmode or a
@@ -581,10 +585,8 @@ class _NativeWork(NamedTuple):
     captured_at: np.ndarray
     captured_pieces: np.ndarray
     path: np.ndarray
-    tt_keys: np.ndarray
-    tt_moves: np.ndarray
-    tt_generations: np.ndarray
-    generation: np.ndarray
+    contexts: np.ndarray
+    tt: BoundTable
     killers: np.ndarray
     history: np.ndarray
     queue: np.ndarray
@@ -603,17 +605,15 @@ def _native_work(weights) -> _NativeWork:
         np.empty((_NATIVE_PLY_SLOTS, 4), dtype=np.int16),
         np.empty((_NATIVE_PLY_SLOTS, 4), dtype=np.int8),
         np.empty(_NATIVE_PLY_SLOTS, dtype=np.uint64),
-        np.zeros(_NATIVE_TT_SIZE, dtype=np.uint64),
-        np.full(_NATIVE_TT_SIZE, -1, dtype=np.int16),
-        np.zeros(_NATIVE_TT_SIZE, dtype=np.int64),
-        np.array([0, 1], dtype=np.int64),
+        np.zeros(_NATIVE_PLY_SLOTS, dtype=np.uint64),
+        allocate_table(_NATIVE_TT_SIZE),
         np.full((_NATIVE_PLY_SLOTS, 2), -1, dtype=np.int16),
         np.zeros((2, _AREA * _AREA), dtype=np.int32),
         np.empty(_AREA, dtype=np.int16),
         np.empty(_AREA, dtype=np.bool_),
         np.empty(_MOVE_CAPACITY, dtype=np.int16),
         np.empty(2, dtype=_CLOCK_DTYPE),
-        np.zeros(6, dtype=np.int64),
+        np.zeros(7, dtype=np.int64),
         weights,
         _native_piece_bonus(weights),
     )
@@ -637,39 +637,6 @@ def _native_capture_priority(board, source, target, attacker):
         elif victim == _A and (ally == _D or ally == _K or ally == _X):
             priority += 6000
     return priority
-
-
-@_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
-def _native_seen(played, path, stamp, ply):
-    low, high = 0, len(played)
-    while low < high:
-        mid = (low + high) // 2
-        if played[mid] < stamp:
-            low = mid + 1
-        else:
-            high = mid
-    if low < len(played) and played[low] == stamp:
-        return True
-    for earlier in range(ply):
-        if path[earlier] == stamp:
-            return True
-    return False
-
-
-@_njit(inline="always")
-def _native_tt_hint(stamp, work):
-    slot = int(stamp & np.uint64(_NATIVE_TT_SIZE - 1))
-    if work.tt_generations[slot] >= work.generation[1] and work.tt_keys[slot] == stamp:
-        return int(work.tt_moves[slot])
-    return -1
-
-
-@_njit(inline="always")
-def _native_tt_store(stamp, move, work):
-    slot = int(stamp & np.uint64(_NATIVE_TT_SIZE - 1))
-    work.tt_keys[slot] = stamp
-    work.tt_moves[slot] = move
-    work.tt_generations[slot] = work.generation[0]
 
 
 @_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
@@ -783,12 +750,25 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         return (value if (winner == _A) == attacker else -value), -1
     stamp = hash_a if attacker else hash_d
     if ply and _native_seen(played, work.path, stamp, ply):
+        counts[_REPETITIONS] += 1
         # Scores enter in the attackers' perspective, independent of ply parity.
         # The referee gives no-legal-move draws priority over repetition.
         draw = repetition_score if repetition_score and _has_legal(board, attacker) else 0
         return (draw if attacker else -draw), -1
 
     normal = depth > 0
+    table = work.tt
+    slot = _tt_lookup(table, stamp) if normal else -1
+    hint = int(table.moves[slot]) if slot >= 0 else -1
+    # Root, quiescence and the unreduced mate certification pass use hints only.
+    use_bounds = normal and ply > 0 and lmr
+    context = work.contexts[ply] if use_bounds else np.uint64(0)
+    mode = 16 * repetition_score + 8 * int(siege) + qleft
+    if use_bounds:
+        hit, value = _tt_cutoff(table, slot, context, depth, mode, ply, alpha, beta)
+        if hit:
+            return value, hint
+
     if normal or qleft or ply == 1:
         winning_move = _immediate_win(board, attacker, attackers, king, work.scratch)
         if winning_move >= 0:
@@ -812,7 +792,6 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         alpha = max(alpha, best)
 
     work.path[ply] = stamp
-    hint = _native_tt_hint(stamp, work) if normal else -1
     useful = _native_order(board, attacker, king, ply, normal, danger, hint, work)
     if normal and useful == 0:
         return 0, -1
@@ -820,6 +799,10 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
     captured_at, captured_pieces = work.captured_at[ply], work.captured_pieces[ply]
     child_depth = max(0, depth - 1)
     child_qleft = qleft if normal else qleft - 1
+    before_alpha = alpha
+    before_repetitions = counts[_REPETITIONS]
+    before_reductions = counts[_REDUCTIONS]
+    child_context = next_context(played, work.contexts, stamp, ply) if lmr and depth > 1 else np.uint64(0)
     first = True
     for index in range(useful):
         rank = index
@@ -832,6 +815,10 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         source, target = divmod(move, _AREA)
         ha, hd, a, d, k, captured = _push(board, move, hash_a, hash_d, attackers, defenders,
                                            king, captured_at, captured_pieces)
+        if lmr and depth > 1:
+            # Captures are irreversible. Earlier tree positions had more
+            # pieces, but every key supplied by the real game is retained.
+            work.contexts[ply + 1] = work.contexts[0] if captured else child_context
         if not normal and not danger and captured == 0:
             if _immediate_win(board, attacker, a, k, work.scratch) < 0:
                 _pop(board, move, captured_at, captured_pieces, captured)
@@ -880,7 +867,10 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
                 work.history[side, move] += depth * depth
             break
     if normal and best_move >= 0:
-        _native_tt_store(stamp, best_move, work)
+        flag = _TT_HINT
+        if use_bounds and counts[_REPETITIONS] == before_repetitions and counts[_REDUCTIONS] == before_reductions:
+            flag = _tt_flag(best, before_alpha, beta)
+        _tt_store(table, stamp, best_move, context, depth, mode, best, flag, ply)
     return best, best_move
 
 
@@ -904,7 +894,7 @@ class _NativeTelemetry:
 
 
 class _NativeSearch:
-    """A single player's per-game hints and independently timed search."""
+    """A player's per-game transposition table and independently timed search."""
 
     def __init__(self, initial_board, weights=None):
         if not _NATIVE_AVAILABLE:
@@ -925,12 +915,12 @@ class _NativeSearch:
         flat, state = _native_position(board)
         # The large recursive kernel has one signature for both sides, every
         # depth, and all search modes. Use it without a timed cutoff here.
-        self.work.generation[0] += 1
+        self.work.tt.generation[0] += 1
         self._iteration(flat, True, state, 1, 0, -2 * _MATE, 2 * _MATE,
                         math.inf, np.empty(0, dtype=np.uint64), False)
 
     def reset_game(self):
-        self.work.generation[1] = self.work.generation[0] + 1
+        self.work.tt.generation[1] = self.work.tt.generation[0] + 1
         self.reset_trace()
 
     def reset_trace(self):
@@ -956,7 +946,7 @@ class _NativeSearch:
         played = np.asarray(sorted(game_history), dtype=np.uint64)
         repetition_score = _ATTACKER_REPETITION_SCORE if is_attacker else 0
         siege = is_attacker and state[3] <= 6 and state[2] >= state[3] + 4
-        work.generation[0] += 1
+        work.tt.generation[0] += 1
         work.killers.fill(-1)
         work.history.fill(0)
         work.counts.fill(0)

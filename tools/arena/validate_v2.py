@@ -38,8 +38,7 @@ def held_out_openings(path: Path):
 
 
 def weighted_player(weights):
-    import Team19
-    import Team19_weights
+    from .snapshots.v_3edc85c import Team19, Team19_weights
 
     # The production constructor and timed callbacks are used on both seats.
     with patch.object(Team19_weights, "DEFAULT_WEIGHTS", tuple(weights)):

@@ -12,6 +12,7 @@ import Team19
 import Team19_engine as engine
 import Team19_eval as evaluation
 import Team19_search as search
+from Team19_tt import lookup
 from Team19_weights import DEFAULT_WEIGHTS, FEATURE_NAMES, native_weights
 
 from . import openings
@@ -170,10 +171,13 @@ class NativeSearchTests(unittest.TestCase):
         work = self.bot.work
         flat, state = search._native_position(board)
         stamp = state[0]
-        hint = search._native_tt_hint(stamp, work)
+        table = work.tt
+        slot = lookup(table, stamp)
+        self.assertGreaterEqual(slot, 0)
+        hint = table.moves[slot]
         self.assertEqual(engine._move_list(hint), result)
-        work.generation[0] += 1
-        self.assertEqual(search._native_tt_hint(stamp, work), hint)
+        table.generation[0] += 1
+        self.assertEqual(lookup(table, stamp), slot)
         work.counts.fill(0)
         played = np.array([stamp], dtype=np.uint64)
         score, move = search._native_visit(
@@ -182,9 +186,8 @@ class NativeSearchTests(unittest.TestCase):
         )
         self.assertEqual((score, move, work.counts[search._NODE_COUNT]), (0, -1, 1))
         self.bot.reset_game()
-        self.assertEqual(search._native_tt_hint(stamp, work), -1)
-        slot = int(stamp) & (search._NATIVE_TT_SIZE - 1)
-        self.assertEqual(work.tt_moves[slot], hint)
+        self.assertEqual(lookup(table, stamp), -1)
+        self.assertEqual(table.moves[slot], hint)
 
     def test_native_search_prefers_a_proven_escape_to_repetition(self):
         board = [["."] * 9 for _ in range(9)]

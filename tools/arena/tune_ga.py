@@ -17,13 +17,12 @@ from time import perf_counter
 import numpy as np
 
 import Tablut
-import Team19_engine as engine
-import Team19_search as search
-from Team19_eval import _native_piece_bonus
-from Team19_weights import DEFAULT_WEIGHTS, FEATURE_NAMES, native_weights
 
 from . import HERE, openings, runner
 from .bots import grandmaster_numba as grandmaster
+from .snapshots.v_3edc85c import Team19_engine as engine, Team19_search as search
+from .snapshots.v_3edc85c.Team19_eval import _native_piece_bonus
+from .snapshots.v_3edc85c.Team19_weights import DEFAULT_WEIGHTS, FEATURE_NAMES, native_weights
 
 
 RESULTS = HERE / "results"
@@ -197,8 +196,8 @@ def _ranking(entry):
 
 
 def _checkpoint_config(depth, seed, cases):
-    root = HERE.parents[1]
-    paths = (root / "Team19_engine.py", root / "Team19_eval.py", root / "Team19_search.py",
+    snapshot = Path(search.__file__).parent
+    paths = (snapshot / "Team19_engine.py", snapshot / "Team19_eval.py", snapshot / "Team19_search.py",
              HERE / "bots" / "grandmaster_numba.py", HERE / "bots" / "numba_rules.py",
              Path(__file__))
     code = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths}

@@ -14,6 +14,7 @@ COMMITS = {
     "v_99671ae": "99671ae4dbe564992fff874ec8e1d89dbfffd8a0",
     "v_e3d64c4": "e3d64c4308d63be81453d691db8cb215368de645",
     "v_91ffcc8": "91ffcc8a087d377b56608ce5869893d0865f67da",
+    "v_3edc85c": "3edc85c7926fe7b8c4659be29857152bcda73367",
 }
 FILES = ("Team19.py", "Team19_engine.py", "Team19_eval.py", "Team19_search.py")
 
@@ -41,7 +42,8 @@ def export(repo: Path, versions=tuple(COMMITS)) -> None:
         path.mkdir(exist_ok=True)
         (path / "__init__.py").write_text('"""Isolated Team19 snapshot."""\n', encoding="utf-8")
         hashes = {}
-        for name in FILES:
+        files = FILES + ("Team19_weights.py",) if package == "v_3edc85c" else FILES
+        for name in files:
             raw = subprocess.check_output(("git", "show", f"{commit}:{name}"), cwd=repo)
             source = package_imports(raw.decode("utf-8").replace("\r\n", "\n"))
             compile(source, name, "exec")

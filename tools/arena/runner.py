@@ -42,8 +42,11 @@ class Team:
     search: str | None = None
 
 
+_V2_MODULE = ".snapshots.v_3edc85c.Team19"
+_V2_SEARCH = ".snapshots.v_3edc85c.Team19_search"
+
 TEAMS = {
-    "Team19-New": Team("Team19", "new", "旧赛段入口，运行当前 Team19", "Team19_search"),
+    "Team19-New": Team("Team19", "new", "历史赛段入口，运行当前根目录版本", "Team19_search"),
     "Team19-PreFix": Team(".snapshots.v_e3d64c4.Team19", "prefix", "估值修复前快照 e3d64c4",
                           ".snapshots.v_e3d64c4.Team19_search"),
     "Team19-Old": Team(".snapshots.v_99671ae.Team19", "old", "三阶段优化前快照 99671ae",
@@ -61,7 +64,9 @@ EXTERNAL = LEAGUE[3:]
 TEAMS.update({
     "Team19-91ffcc8": Team(".snapshots.v_91ffcc8.Team19", "91f", "Numba 重构前快照 91ffcc8",
                          ".snapshots.v_91ffcc8.Team19_search"),
-    "Team19-v2": Team("Team19", "v2", "当前提交版，Numba 搜索与已调权重", "Team19_search"),
+    "Team19-v2": Team(_V2_MODULE, "v2", "时钟及收官补丁版快照 3edc85c", _V2_SEARCH),
+    "Team19-v3": Team("Team19", "v3", "当前提交版，路径安全分值置换表", "Team19_search"),
+    "Grandmaster-Plus": Team(".bots.grandmaster_plus", "gmp", "Grandmaster 原估值，增强搜索和时钟"),
 })
 TEAM_NAMES = {label.casefold(): name for name, team in TEAMS.items() for label in (name, team.alias)}
 TEAM_PRESETS = {"top6": TOP6_TEAMS, "all": tuple(TEAMS)}
@@ -289,17 +294,20 @@ def run_match(match: Match, *, factories=None) -> dict:
 def _fingerprint(stage: str, matches: list[Match], extra=None) -> str:
     root = Path(Tablut.__file__).resolve().parent
     paths = [root / "Tablut.py", *root.glob("Team19*.py")]
-    for name in sorted({name for game in matches for name in (game.attacker, game.defender)}):
+    teams = {name for game in matches for name in (game.attacker, game.defender)}
+    for name in sorted(teams):
         module = TEAMS[name].module
         if module.startswith("."):
             file = HERE.joinpath(*module[1:].split(".")).with_suffix(".py")
             paths.extend(file.parent.glob("Team19*.py") if TEAMS[name].search else [file])
     paths += sorted((HERE / "bots").glob("*common*.py"))
     advanced = {"Guided-MCTS", "BFS-Strategist", "QSearch-PVS"}
-    if any(name in advanced for game in matches for name in (game.attacker, game.defender)):
+    if teams & advanced:
         paths.append(HERE / "bots" / "tactics.py")
-    if any("Grandmaster-Numba" in (game.attacker, game.defender) for game in matches):
+    if teams & {"Grandmaster-Numba", "Grandmaster-Plus"}:
         paths.append(HERE / "bots" / "numba_rules.py")
+    if "Grandmaster-Plus" in teams:
+        paths.append(HERE / "bots" / "grandmaster_numba.py")
     payload = [SCHEMA, stage, [asdict(match) for match in matches],
                sorted({hashlib.sha256(file.read_bytes()).hexdigest() for file in paths})]
     if extra is not None:
