@@ -12,7 +12,7 @@ import Team19
 import Team19_engine as engine
 import Team19_eval as evaluation
 import Team19_search as search
-from Team19_tt import lookup
+from Team19_tt import advance_generation, hint_move, lookup
 from Team19_weights import DEFAULT_WEIGHTS, FEATURE_NAMES, native_weights
 
 from . import openings
@@ -172,12 +172,12 @@ class NativeSearchTests(unittest.TestCase):
         flat, state = search._native_position(board)
         stamp = state[0]
         table = work.tt
-        slot = lookup(table, stamp)
-        self.assertGreaterEqual(slot, 0)
-        hint = table.moves[slot]
+        entry = lookup(table, stamp)
+        self.assertNotEqual(entry, 0)
+        hint = hint_move(entry)
         self.assertEqual(engine._move_list(hint), result)
-        table.generation[0] += 1
-        self.assertEqual(lookup(table, stamp), slot)
+        advance_generation(table)
+        self.assertEqual(lookup(table, stamp), entry)
         work.counts.fill(0)
         played = np.array([stamp], dtype=np.uint64)
         score, move = search._native_visit(
@@ -186,8 +186,8 @@ class NativeSearchTests(unittest.TestCase):
         )
         self.assertEqual((score, move, work.counts[search._NODE_COUNT]), (0, -1, 1))
         self.bot.reset_game()
-        self.assertEqual(lookup(table, stamp), -1)
-        self.assertEqual(table.moves[slot], hint)
+        self.assertEqual(lookup(table, stamp), 0)
+        self.assertEqual(hint_move(entry), hint)
 
     def test_native_search_prefers_a_proven_escape_to_repetition(self):
         board = [["."] * 9 for _ in range(9)]

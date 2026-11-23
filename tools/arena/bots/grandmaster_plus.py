@@ -1,15 +1,18 @@
 """Grandmaster's original evaluator with a larger, path-safe search."""
 
+from dataclasses import dataclass
 from math import inf
 import time
 from typing import NamedTuple
 
 import numpy as np
-from numba import njit, objmode
+from numba import njit
 
 import Tablut
+from Team19_search import _CLOCK_DTYPE, _native_now, _read_native_clock
 from Team19_tt import (
-    BoundTable, HINT, allocate_table, classify_bound, cutoff, lookup, next_context, remember, seen,
+    BoundTable, HINT, advance_generation, allocate_table, classify_bound, cutoff, hint_move,
+    lookup, remember, seen,
 )
 
 from .common import MATE, Telemetry
@@ -23,7 +26,12 @@ from .numba_rules import _A, _AREA, _K, _MOVE_CAPACITY, _flat, _has_legal, _lega
 _RETURN_RESERVE = 0.225
 _CALL_OVERHEAD = 0.00125
 _LOW_CLOCK = 0.5
-_NODES, _REDUCTIONS, _REPETITIONS, _STOPPED = range(4)
+_NODES, _REDUCTIONS, _REPETITIONS, _STOPPED, _TT_CUTOFFS = range(5)
+
+
+@dataclass
+class _PlusTelemetry(Telemetry):
+    tt_cutoffs: int = 0
 
 
 class Work(NamedTuple):
@@ -32,12 +40,12 @@ class Work(NamedTuple):
     captured_at: np.ndarray
     captured_pieces: np.ndarray
     path: np.ndarray
-    contexts: np.ndarray
     tt: BoundTable
     killers: np.ndarray
     history: np.ndarray
     queue: np.ndarray
     seen: np.ndarray
+    clock: np.ndarray
     counts: np.ndarray
 
 
@@ -48,34 +56,29 @@ def _work() -> Work:
         np.empty((_PLY_SLOTS, 4), dtype=np.int16),
         np.empty((_PLY_SLOTS, 4), dtype=np.int8),
         np.empty(_PLY_SLOTS, dtype=np.uint64),
-        np.zeros(_PLY_SLOTS, dtype=np.uint64),
         allocate_table(),
         np.full((_PLY_SLOTS, 2), -1, dtype=np.int16),
         np.zeros((2, _AREA * _AREA), dtype=np.int32),
         np.empty(_AREA, dtype=np.int16),
         np.empty(_AREA, dtype=np.bool_),
-        np.zeros(4, dtype=np.int64),
+        np.empty(2, dtype=_CLOCK_DTYPE),
+        np.zeros(5, dtype=np.int64),
     )
 
 
-@njit
+@njit(no_cfunc_wrapper=True, _nrt=False)
 def _visit(board, attacker, hash_a, hash_d, attack_count, defend_count, king,
            depth, qleft, ply, alpha, beta, deadline, played, work, lmr):
     counts = work.counts
     counts[_NODES] += 1
-    if counts[_NODES] & 511 == 0 and deadline < inf:
-        with objmode(now="float64"):
-            now = time.perf_counter()
-        if now >= deadline:
-            counts[_STOPPED] = 1
+    if counts[_NODES] & 511 == 0 and deadline < inf and _native_now(work.clock) >= deadline:
+        counts[_STOPPED] = 1
     if counts[_STOPPED]:
         return 0, -1
     sign = 1 if attacker else -1
     winner = _winner(attack_count, king)
     if winner:
         return sign * (MATE - ply if winner == _A else -MATE + ply), -1
-    if not _has_legal(board, attacker):
-        return 0, -1
     stamp = hash_a if attacker else hash_d
     if ply and seen(played, work.path, stamp, ply):
         counts[_REPETITIONS] += 1
@@ -83,15 +86,18 @@ def _visit(board, attacker, hash_a, hash_d, attack_count, defend_count, king,
 
     normal = depth > 0
     table = work.tt
-    slot = lookup(table, stamp) if normal else -1
-    hint = int(table.moves[slot]) if slot >= 0 else -1
+    entry = lookup(table, stamp) if normal else np.uint64(0)
+    hint = hint_move(entry)
     use_bounds = normal and ply > 0 and lmr
-    context = work.contexts[ply] if use_bounds else np.uint64(0)
     if use_bounds:
-        hit, value = cutoff(table, slot, context, depth, qleft, ply, alpha, beta)
+        hit, value = cutoff(entry, depth, qleft, ply, alpha, beta)
         if hit:
+            counts[_TT_CUTOFFS] += 1
             return value, hint
 
+    # Normal nodes already generate the full legal list below.
+    if not normal and not _has_legal(board, attacker):
+        return 0, -1
     if normal or qleft or ply == 1:
         immediate = _king_win(board, attacker, king)
         if immediate >= 0:
@@ -112,6 +118,8 @@ def _visit(board, attacker, hash_a, hash_d, attack_count, defend_count, king,
     moves = work.moves[ply]
     scores = work.priorities[ply]
     count = _legal(board, attacker, moves)
+    if normal and count == 0:
+        return 0, -1
     side = 0 if attacker else 1
     useful = 0
     for index in range(count):
@@ -139,8 +147,6 @@ def _visit(board, attacker, hash_a, hash_d, attack_count, defend_count, king,
     child_qleft = qleft if normal else qleft - 1
     before_alpha = alpha
     before_repetitions = counts[_REPETITIONS]
-    before_reductions = counts[_REDUCTIONS]
-    child_context = next_context(played, work.contexts, stamp, ply) if lmr and depth > 1 else np.uint64(0)
     first = True
     captured_squares = work.captured_at[ply]
     captured_pieces = work.captured_pieces[ply]
@@ -155,8 +161,6 @@ def _visit(board, attacker, hash_a, hash_d, attack_count, defend_count, king,
         source, target = divmod(move, _AREA)
         ha, hd, a, d, k, captured = _push(board, move, hash_a, hash_d, attack_count,
                                            defend_count, king, captured_squares, captured_pieces)
-        if lmr and depth > 1:
-            work.contexts[ply + 1] = work.contexts[0] if captured else child_context
         if not normal and not danger and captured == 0:
             if not attacker or _king_win(board, True, k) < 0:
                 _pop(board, move, captured_squares, captured_pieces, captured)
@@ -198,9 +202,9 @@ def _visit(board, attacker, hash_a, hash_d, attack_count, defend_count, king,
             break
     if normal and best_move >= 0:
         flag = HINT
-        if use_bounds and counts[_REPETITIONS] == before_repetitions and counts[_REDUCTIONS] == before_reductions:
+        if use_bounds and counts[_REPETITIONS] == before_repetitions:
             flag = classify_bound(best, before_alpha, beta)
-        remember(table, stamp, best_move, context, depth, qleft, best, flag, ply)
+        remember(table, stamp, best_move, depth, qleft, best, flag, ply)
     return best, best_move
 
 
@@ -211,7 +215,7 @@ class Player:
         self.work = _work()
         flat = _flat(initial.board)
         started = time.perf_counter()
-        self.work.tt.generation[0] += 1
+        advance_generation(self.work.tt)
         self._iteration(flat, True, _root_state(flat), 1, 0, -2 * MATE, 2 * MATE,
                         inf, np.empty(0, dtype=np.uint64), False)
         self.warmup_seconds = time.perf_counter() - started
@@ -221,7 +225,7 @@ class Player:
         self.remaining = float(Tablut.TIME_BUDGET)
         self.history = {self.initial_hash}
         self.moves_played = 0
-        self.last_search = Telemetry()
+        self.last_search = _PlusTelemetry()
         self.work.tt.generation[1] = self.work.tt.generation[0] + 1
 
     def seed_history(self, history):
@@ -247,6 +251,7 @@ class Player:
 
     def _play(self, board, attacker):
         started = time.perf_counter()
+        self.last_search = _PlusTelemetry()
         try:
             flat = _flat(board)
             state = _root_state(flat)
@@ -256,8 +261,10 @@ class Player:
             self.history.add(int(ha if attacker else hd))
             played = np.array(sorted(self.history), dtype=np.uint64)
             work = self.work
+            available = max(0.0, deadline - time.perf_counter())
+            native_deadline = _read_native_clock(work.clock) + available
             work.counts.fill(0)
-            work.tt.generation[0] += 1
+            advance_generation(work.tt)
             work.killers.fill(-1)
             work.history.fill(0)
             best, score, depth_done = -1, 0, 0
@@ -266,9 +273,10 @@ class Player:
                 if not first and time.perf_counter() >= deadline:
                     break
                 # Keep one complete, bounded tactical pass even on a low clock.
-                stop_at = inf if first else deadline
+                stop_at = inf if first else native_deadline
                 qleft = 0 if first else _Q_LIMIT
                 reduced = work.counts[_REDUCTIONS]
+                cached = work.counts[_TT_CUTOFFS]
                 alpha, beta = (-2 * MATE, 2 * MATE) if first else (score - 850, score + 850)
                 value, move = self._iteration(flat, attacker, state, depth, qleft, alpha, beta,
                                               stop_at, played, True)
@@ -276,7 +284,7 @@ class Player:
                     value, move = self._iteration(flat, attacker, state, depth, qleft, -2 * MATE,
                                                   2 * MATE, stop_at, played, True)
                 if (not work.counts[_STOPPED] and abs(value) >= MATE - _PLY_SLOTS
-                        and work.counts[_REDUCTIONS] > reduced):
+                        and (work.counts[_REDUCTIONS] > reduced or work.counts[_TT_CUTOFFS] > cached)):
                     value, move = self._iteration(flat, attacker, state, depth, qleft, -2 * MATE,
                                                   2 * MATE, stop_at, played, False)
                 if work.counts[_STOPPED]:
@@ -293,8 +301,10 @@ class Player:
             ha, hd, _, _, _, _ = _push(flat, best, *state, work.captured_at[0], work.captured_pieces[0])
             self.history.add(int(hd if attacker else ha))
             self.moves_played += 1
-            self.last_search = Telemetry(depth=depth_done, nodes=int(work.counts[_NODES]),
-                                         score=score if attacker else -score, fallback=fallback)
+            self.last_search = _PlusTelemetry(
+                depth=depth_done, nodes=int(work.counts[_NODES]), score=score if attacker else -score,
+                fallback=fallback, tt_cutoffs=int(work.counts[_TT_CUTOFFS]),
+            )
             return _move_list(best)
         finally:
             self.remaining = max(0.0, self.remaining - (time.perf_counter() - started) - _CALL_OVERHEAD)

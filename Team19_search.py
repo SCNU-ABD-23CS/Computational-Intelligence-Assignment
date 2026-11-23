@@ -18,9 +18,9 @@ from typing import NamedTuple, TYPE_CHECKING
 import numpy as np
 from numba import njit as _njit
 from Team19_tt import (
-    BoundTable, HINT as _TT_HINT, TT_SIZE as _NATIVE_TT_SIZE, allocate_table,
+    BoundTable, HINT as _TT_HINT, TT_SIZE as _NATIVE_TT_SIZE, advance_generation, allocate_table,
     classify_bound as _tt_flag, cutoff as _tt_cutoff, seen as _native_seen,
-    lookup as _tt_lookup, next_context, remember as _tt_store,
+    hint_move as _tt_move, lookup as _tt_lookup, remember as _tt_store,
 )
 
 if TYPE_CHECKING:
@@ -537,7 +537,8 @@ _Q_LIMIT = 4
 _NATIVE_PLY_SLOTS = _MAX_ITERATIVE_DEPTH + _Q_LIMIT + 2
 _ATTACKER_REPETITION_SCORE = -3000
 _SIEGE_SCORE_THRESHOLD = 7500
-_NODE_COUNT, _CUTOFFS, _REDUCTIONS, _RESEARCHES, _STOPPED, _EVALUATIONS, _REPETITIONS = range(7)
+(_NODE_COUNT, _CUTOFFS, _REDUCTIONS, _RESEARCHES, _STOPPED, _EVALUATIONS,
+ _REPETITIONS, _TT_CUTOFFS) = range(8)
 
 
 # Read the OS monotonic counter from compiled search, without objmode or a
@@ -585,7 +586,6 @@ class _NativeWork(NamedTuple):
     captured_at: np.ndarray
     captured_pieces: np.ndarray
     path: np.ndarray
-    contexts: np.ndarray
     tt: BoundTable
     killers: np.ndarray
     history: np.ndarray
@@ -605,7 +605,6 @@ def _native_work(weights) -> _NativeWork:
         np.empty((_NATIVE_PLY_SLOTS, 4), dtype=np.int16),
         np.empty((_NATIVE_PLY_SLOTS, 4), dtype=np.int8),
         np.empty(_NATIVE_PLY_SLOTS, dtype=np.uint64),
-        np.zeros(_NATIVE_PLY_SLOTS, dtype=np.uint64),
         allocate_table(_NATIVE_TT_SIZE),
         np.full((_NATIVE_PLY_SLOTS, 2), -1, dtype=np.int16),
         np.zeros((2, _AREA * _AREA), dtype=np.int32),
@@ -613,7 +612,7 @@ def _native_work(weights) -> _NativeWork:
         np.empty(_AREA, dtype=np.bool_),
         np.empty(_MOVE_CAPACITY, dtype=np.int16),
         np.empty(2, dtype=_CLOCK_DTYPE),
-        np.zeros(7, dtype=np.int64),
+        np.zeros(8, dtype=np.int64),
         weights,
         _native_piece_bonus(weights),
     )
@@ -758,15 +757,16 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
 
     normal = depth > 0
     table = work.tt
-    slot = _tt_lookup(table, stamp) if normal else -1
-    hint = int(table.moves[slot]) if slot >= 0 else -1
-    # Root, quiescence and the unreduced mate certification pass use hints only.
-    use_bounds = normal and ply > 0 and lmr
-    context = work.contexts[ply] if use_bounds else np.uint64(0)
-    mode = 16 * repetition_score + 8 * int(siege) + qleft
+    entry = _tt_lookup(table, stamp) if normal else np.uint64(0)
+    hint = _tt_move(entry)
+    # Static search skips the table. Root and mate certification use hints only.
+    standard_draw = repetition_score == 0 or repetition_score == _ATTACKER_REPETITION_SCORE
+    use_bounds = normal and ply > 0 and lmr and standard_draw
+    mode = qleft | (int(siege) << 3) | (int(repetition_score != 0) << 4)
     if use_bounds:
-        hit, value = _tt_cutoff(table, slot, context, depth, mode, ply, alpha, beta)
+        hit, value = _tt_cutoff(entry, depth, mode, ply, alpha, beta)
         if hit:
+            counts[_TT_CUTOFFS] += 1
             return value, hint
 
     if normal or qleft or ply == 1:
@@ -801,8 +801,6 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
     child_qleft = qleft if normal else qleft - 1
     before_alpha = alpha
     before_repetitions = counts[_REPETITIONS]
-    before_reductions = counts[_REDUCTIONS]
-    child_context = next_context(played, work.contexts, stamp, ply) if lmr and depth > 1 else np.uint64(0)
     first = True
     for index in range(useful):
         rank = index
@@ -815,10 +813,6 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         source, target = divmod(move, _AREA)
         ha, hd, a, d, k, captured = _push(board, move, hash_a, hash_d, attackers, defenders,
                                            king, captured_at, captured_pieces)
-        if lmr and depth > 1:
-            # Captures are irreversible. Earlier tree positions had more
-            # pieces, but every key supplied by the real game is retained.
-            work.contexts[ply + 1] = work.contexts[0] if captured else child_context
         if not normal and not danger and captured == 0:
             if _immediate_win(board, attacker, a, k, work.scratch) < 0:
                 _pop(board, move, captured_at, captured_pieces, captured)
@@ -868,9 +862,9 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
             break
     if normal and best_move >= 0:
         flag = _TT_HINT
-        if use_bounds and counts[_REPETITIONS] == before_repetitions and counts[_REDUCTIONS] == before_reductions:
+        if use_bounds and counts[_REPETITIONS] == before_repetitions:
             flag = _tt_flag(best, before_alpha, beta)
-        _tt_store(table, stamp, best_move, context, depth, mode, best, flag, ply)
+        _tt_store(table, stamp, best_move, depth, mode, best, flag, ply)
     return best, best_move
 
 
@@ -891,6 +885,7 @@ class _NativeTelemetry:
     fallback: bool
     reductions: int = 0
     reduced_researches: int = 0
+    tt_cutoffs: int = 0
 
 
 class _NativeSearch:
@@ -915,7 +910,7 @@ class _NativeSearch:
         flat, state = _native_position(board)
         # The large recursive kernel has one signature for both sides, every
         # depth, and all search modes. Use it without a timed cutoff here.
-        self.work.tt.generation[0] += 1
+        advance_generation(self.work.tt)
         self._iteration(flat, True, state, 1, 0, -2 * _MATE, 2 * _MATE,
                         math.inf, np.empty(0, dtype=np.uint64), False)
 
@@ -946,7 +941,7 @@ class _NativeSearch:
         played = np.asarray(sorted(game_history), dtype=np.uint64)
         repetition_score = _ATTACKER_REPETITION_SCORE if is_attacker else 0
         siege = is_attacker and state[3] <= 6 and state[2] >= state[3] + 4
-        work.tt.generation[0] += 1
+        advance_generation(work.tt)
         work.killers.fill(-1)
         work.history.fill(0)
         work.counts.fill(0)
@@ -964,6 +959,7 @@ class _NativeSearch:
             nodes, cutoffs = int(work.counts[_NODE_COUNT]), int(work.counts[_CUTOFFS])
             evaluated = int(work.counts[_EVALUATIONS])
             reduced = int(work.counts[_REDUCTIONS])
+            cached = int(work.counts[_TT_CUTOFFS])
             # The first complete pass is bounded to one full move and exact
             # immediate threats. It runs even if the deeper-search time is zero.
             first = depth == 1
@@ -979,10 +975,10 @@ class _NativeSearch:
                     flat, is_attacker, state, depth, qleft, -2 * _MATE, 2 * _MATE,
                     stop_at, played, True, repetition_score, siege,
                 )
-            # Selectivity may hide a later defence. Certify mate scores with
-            # the normal depth in every branch before the early-exit decision.
+            # Cached bounds may come from a reduced search or another path.
+            # Certify a mate at full depth with hint-only TT access.
             if (not work.counts[_STOPPED] and abs(value) >= _MATE - _NATIVE_PLY_SLOTS
-                    and work.counts[_REDUCTIONS] > reduced):
+                    and (work.counts[_REDUCTIONS] > reduced or work.counts[_TT_CUTOFFS] > cached)):
                 value, move = self._iteration(
                     flat, is_attacker, state, depth, qleft, -2 * _MATE, 2 * _MATE,
                     stop_at, played, False, repetition_score, siege,
@@ -1012,5 +1008,6 @@ class _NativeSearch:
         self.last_search = _NativeTelemetry(
             depth, int(work.counts[_NODE_COUNT]), result.score, False,
             int(work.counts[_REDUCTIONS]), int(work.counts[_RESEARCHES]),
+            int(work.counts[_TT_CUTOFFS]),
         )
         return _move_list(best)
