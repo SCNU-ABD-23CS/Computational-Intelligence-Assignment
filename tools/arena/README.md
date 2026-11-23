@@ -1,64 +1,79 @@
 # JC4004 离线评测
 
-从仓库根目录用课程的 Python 3.12 环境运行。评测调用官方
-`Tablut.Tablut.play()`，构造参赛者后才启动该局的两只挂钟。
-四步开局由裁判逐步复放，双方从完整历史和原始预算开始。
+激活已安装 `requirements.txt` 依赖的 Python 3.12 环境，从仓库根目录运行。每局由官方 `Tablut.Tablut.play()` 裁判，开局历史完整复放，双方各有独立的整局挂钟。所有赛程串行执行。
 
-## 五队冒烟
+## 算法简称
 
-```powershell
-python -B -m tools.arena.runner --stage smoke --openings 1
-python -B -m tools.arena.runner --stage random
-python -B -m tools.arena.report smoke
-python -B -m tools.arena.report random
-python -B -m unittest tools.arena.test_arena -v
-```
+运行 `python -X utf8 -B -m tools.arena.runner --list-teams` 可查看终端对照表。队名和简称大小写不敏感，逗号分隔，预设可与单队混用。
 
-中断后用相同参数加 `--resume`，已落盘的比赛自动跳过。
-`--limit 1` 可先跑一局，`--run-id` 可为独立重复试验命名。
-固定赛程严格串行。同一结果目录一次只允许一个写入进程。
+| 简称 | 全名 | 简介 |
+| --- | --- | --- |
+| `v2` | Team19-v2 | 当前提交版，Numba 搜索与已调权重 |
+| `gm` | Grandmaster-Numba | Numba 高速强敌 |
+| `qs` | QSearch-PVS | 主变搜索与静态延伸 |
+| `bfs` | BFS-Strategist | 国王逃生路径和包围网估值 |
+| `91f` | Team19-91ffcc8 | Numba 重构前快照 |
+| `mcts` | Guided-MCTS | 启发式引导蒙特卡洛树搜索 |
+| `prefix` | Team19-PreFix | 估值修复前快照 e3d64c4 |
+| `old` | Team19-Old | 三阶段优化前快照 99671ae |
+| `greedy` | GreedyBot | 一步贪心基线 |
+| `ab2` | NaiveAB-D2 | 固定两层 Alpha-Beta 基线 |
+| `random` | RandomBot | 随机合法步冒烟基线 |
+| `new` | Team19-New | 旧赛段入口，运行当前 Team19 |
 
-`results/` 保存每局 JSONL、每赛段 Markdown 和 CSV、Team19-New 败局与和局的棋谱。
-积分为胜 2、平 1、负 0。标准开局赛按 `30 × 本队积分 / 榜首积分` 折算课程模拟分。
-BT Elo 同时估计队伍相对实力和执攻方偏差。Team19-Old 的历史合法兜底在各报告单列。
+`top6` 选 v2、gm、qs、bfs、91f、mcts。`all` 选表中所有条目，包含与 v2 共用实现的历史入口 new。
 
-## 九队联赛
+## 常用命令
 
-在安装了 `requirements.txt` 依赖的 Python 3.12 环境中，从仓库根目录依次运行。
-
-```powershell
-python -B -m tools.arena.runner --stage official --workers 1 --resume
-python -B -m tools.arena.runner --stage fast --workers 1 --resume
-python -B -m tools.arena.runner --stage final --workers 1 --resume
-python -B -m tools.arena.overview
-```
-
-| 赛段 | 开局 | 时间 | 场次 |
-| --- | --- | --- | --- |
-| `official` | 标准开局，所有对阵均换边 | 60 秒 | 72 |
-| `fast` | 前 6 个固定开局，所有对阵均换边 | 10 秒 | 432 |
-| `final` | 全部 12 个固定开局，新版与每个强敌各换边 | 60 秒 | 72 |
-
-强敌取外部六队中标准开局赛前三。同积分时比较快棋积分，再按队名排序。
-`overview` 复放三个赛段、核对官方裁判判定与记录，并生成 `results/overview.md`。
-用 `python -B -m tools.arena.report official` 可单独生成一个赛段的战报。
-
-## 离线统计看板
-
-在仓库根目录运行以下命令。看板读取已有的 JSONL 与 CSV，适用于单个赛段或完整联赛。
+`--games-per-pair` 取 **2 至 24 的偶数**，默认 2。每组用前 N/2 个固定开局，每个开局换边各打一局。`--budgets` 默认 60，可按顺序指定多档，每个数是**每方整局秒数**。默认 `--format rr` 打全循环。`1vn` 只安排擂主对各挑战者，默认取队伍列表第一项。
 
 ```powershell
-python -B -m tools.arena.dashboard
+# 六强双档封板。每档 15 组 × 24 局，共 720 局。已有同配置赛果会先归档
+python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60,10 --fresh
+
+# 单跑 60 秒档，共 360 局
+python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60
+
+# 快速 1v4 车轮战，共 16 局
+python -X utf8 -B -m tools.arena.runner --teams v2,gm,qs,bfs,mcts --format 1vn --anchor v2 --games-per-pair 4 --budgets 10
+
+# 预览赛程、已有记录、可复用局数和按双方用满预算估算的耗时
+python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60,10 --dry-run
+
+# Ctrl+C 中断后保留原赛程参数，只用 --resume 续跑
+python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60,10 --resume
+
+# v2 单独更新后，保留同配置下其他队伍之间已完成的局
+python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60,10 --rerun-team v2
 ```
 
-双击 `tools/arena/results/dashboard.html` 即可离线打开，也可把这个文件单独发给队友。
-用页顶标签或总览卡片切换赛段。点击「打印视图」可打印当前赛段或另存为 PDF。
+`--fresh`、`--resume` 和 `--rerun-team` 三选一。双档 `--fresh` 在首局前归档两档旧赛果。局部重跑会验证复用棋谱，同一实现的多个参赛名会一并重跑。改动影响多队共用代码时，用 `--fresh` 重测。可用 `--run-id` 给独立实验加名称前缀。
 
-总览汇总已加载赛段的对局、终局与稳定性，并比较 Team19 三代得分率。
-循环赛交手热力图按得分率着色，和棋贡献 1 分。强敌赛按对手展示新版的换边结果。
+## 赛果与看板
 
-可用 `--results-dir` 指定赛果目录，用 `--output` 指定生成位置。
-`overview` 在输出原有战报后刷新看板，可用 `--no-dashboard` 跳过刷新。
+- `tools/arena/results/` 下每个预算一个 `arena-<配置标识>-<预算>s.jsonl`，记录逐局棋谱、裁判剩时和搜索统计。每局结束立即落盘，终端同步显示完成比例、对阵和 ETA。
+- 自动归档带 `.before-<UTC 时间戳>.jsonl` 后缀。局部重跑的复用记录带原始赛果来源。
+- 完成后覆盖同目录的 `dashboard.html`。双击离线查看对应预算、队伍、交手矩阵、攻守与稳定性。用 `--no-dashboard` 保留当前看板。用相同赛程参数加 `--resume --limit 0` 可按已落盘结果刷新看板。
+- 如需 CSV 和 Markdown，运行 `python -B -m tools.arena.report <JSONL 文件名去掉扩展名>`。胜 2、和 1、负 0；完整循环赛显示 30 分制模拟课程分。
+
+## 历史固定赛段
+
+`--stage smoke|random|duel|official|fast|final|top6_60s|top6_10s` 沿用原有赛程和结果文件。例如 `python -X utf8 -B -m tools.arena.runner --stage top6_60s --resume` 跑前 6 个开局换边的 180 局赛程。`top6_10s` 仍从本地历史赛果复用 168 局。可运行 `python -B -m tools.arena.dashboard` 重新生成这两个固定赛段的看板，或用 `python -B -m tools.arena.overview` 审计原九队赛段。
+
+## v2 权重与四代对照
+
+根目录 README 提供训练、接力和验证命令。训练使用固定开局及实战中局的 D3/D4 对局，适应度侧重攻方和对 Grandmaster 的得分。两项新增射线特征采用绝对变异步长，初始权重为零时也会探索。训练记录与候选 JSON 写入本地 `results/`。
+
+验证冻结两份权重并生成另一组开局。候选与默认版、Grandmaster 的对比各包含 12 个开局换边，在 10 秒和 60 秒档串行执行。进化权重的更新依据独立对赛结果。
+首轮热启动向量保存在 `results/team19-v2-hot-weights.json`。复跑首轮对照时可用 `--baseline` 指定它，并用独立的 `--run-id` 保存新赛果。
+
+```powershell
+python -B -m tools.arena.export_snapshots --version v_91ffcc8
+python -B -m tools.arena.evolution --workers 1 --resume
+python -B -m tools.arena.verify_submission
+```
+
+四代对照的赛果保存在 `results/evolution-official.jsonl` 和 `results/evolution-fast.jsonl`。只读冒烟在独立目录用官方裁判完成 10 秒和 60 秒对局。
 
 ## 回看棋谱
 
@@ -90,6 +105,6 @@ Grandmaster-Numba 在创建选手时运行一次初始盘面的 D1 搜索完成�
 最终盘面。对称等价局面只保留一个。
 
 `python -B -m tools.arena.openings` 可重新生成开局库。
-`python -B -m tools.arena.export_snapshots` 从两个固定 Git 提交导出历史版本，
+`python -B -m tools.arena.export_snapshots` 从三个固定 Git 提交导出历史版本，
 仅调整模块间导入，并记录导出前的文件哈希。参赛时每个版本都用独立包名，
 共用同一个官方裁判模块和时限。

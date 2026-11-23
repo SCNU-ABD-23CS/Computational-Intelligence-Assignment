@@ -25,6 +25,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 import random
 
+import numpy as np
+from numba import njit as _njit
+
 # ---------------------------------------------------------------------------
 # Board alphabet and constants
 # ---------------------------------------------------------------------------
@@ -461,3 +464,250 @@ __all__ = [
     "compute_hash",
     "get_legal_moves",
 ]
+
+
+# ---------------------------------------------------------------------------
+# Native search track. The referee-facing Python functions above are unchanged.
+# ---------------------------------------------------------------------------
+
+_A, _D, _K, _X = 1, 2, 3, 4
+_CELLS = ".ADKX"
+_CODES = {cell: index for index, cell in enumerate(_CELLS)}
+_CASTLE = 40
+_AREA = 81
+_MOVE_CAPACITY = 324
+_NEAR = np.full((_AREA, 4), -1, dtype=np.int16)
+_BEYOND = np.full_like(_NEAR, -1)
+_EDGE = np.zeros(_AREA, dtype=np.bool_)
+_KING_CASTLE = np.zeros(_AREA, dtype=np.bool_)
+for _square in range(_AREA):
+    _row, _col = divmod(_square, SIZE)
+    _EDGE[_square] = _row in (0, 8) or _col in (0, 8)
+    _KING_CASTLE[_square] = abs(_row - 4) + abs(_col - 4) <= 1
+    for _index, (_dr, _dc) in enumerate(_DIRECTIONS):
+        if 0 <= _row + _dr < SIZE and 0 <= _col + _dc < SIZE:
+            _NEAR[_square, _index] = _square + _dr * SIZE + _dc
+        if 0 <= _row + 2 * _dr < SIZE and 0 <= _col + 2 * _dc < SIZE:
+            _BEYOND[_square, _index] = _square + 2 * (_dr * SIZE + _dc)
+_FLAT_HASH_KEYS = np.zeros((_AREA, 5, 2), dtype=np.uint64)
+for _square in range(_AREA):
+    for _piece in (_A, _D, _K):
+        for _turn in range(2):
+            _FLAT_HASH_KEYS[_square, _piece, _turn] = _ZOBRIST[_square, _piece - 1, _turn]
+
+
+def _flat(board: list[list[str]]) -> np.ndarray:
+    """Encode one 9×9 referee board for the native search."""
+    if len(board) != SIZE or any(len(row) != SIZE for row in board):
+        raise ValueError("Expected a 9×9 Tablut board")
+    return np.fromiter((_CODES[cell] for row in board for cell in row), count=_AREA, dtype=np.int8)
+
+
+def _nested(board: np.ndarray) -> list[list[str]]:
+    return [[_CELLS[cell] for cell in row] for row in board.reshape((9, 9))]
+
+
+def _move_list(code: int) -> list[list[int]]:
+    start, end = divmod(code, _AREA)
+    return [list(divmod(start, SIZE)), list(divmod(end, SIZE))]
+
+
+@_njit(no_cfunc_wrapper=True)
+def _describe(board):
+    hash_a = np.uint64(0)
+    hash_d = np.uint64(0)
+    attackers = defenders = 0
+    king = -1
+    for square in range(_AREA):
+        piece = board[square]
+        if 1 <= piece <= _K:
+            hash_a ^= _FLAT_HASH_KEYS[square, piece, 0]
+            hash_d ^= _FLAT_HASH_KEYS[square, piece, 1]
+            if piece == _A:
+                attackers += 1
+            elif piece == _D:
+                defenders += 1
+            else:
+                king = square
+    return hash_a, hash_d, attackers, defenders, king
+
+
+@_njit(inline="always")
+def _friendly(piece, attacker):
+    return piece == _A if attacker else piece == _D or piece == _K
+
+
+@_njit(no_cfunc_wrapper=True)
+def _legal(board, attacker, moves):
+    length = 0
+    for source in range(_AREA):
+        if not _friendly(board[source], attacker):
+            continue
+        for direction in range(4):
+            destination = int(_NEAR[source, direction])
+            while destination >= 0:
+                occupant = board[destination]
+                if occupant == 0:
+                    moves[length] = source * _AREA + destination
+                    length += 1
+                elif occupant != _X:
+                    break
+                destination = int(_NEAR[destination, direction])
+    return length
+
+
+@_njit(no_cfunc_wrapper=True)
+def _has_legal(board, attacker):
+    for source in range(_AREA):
+        if not _friendly(board[source], attacker):
+            continue
+        for direction in range(4):
+            target = int(_NEAR[source, direction])
+            while target >= 0 and board[target] == _X:
+                target = int(_NEAR[target, direction])
+            if target >= 0 and board[target] == 0:
+                return True
+    return False
+
+
+@_njit(inline="always")
+def _winner(attackers, king):
+    if king < 0:
+        return _A
+    if attackers < 2 or _EDGE[king]:
+        return _D
+    return 0
+
+
+@_njit(no_cfunc_wrapper=True)
+def _push(board, move, hash_a, hash_d, attackers, defenders, king, squares, pieces):
+    source, target = divmod(move, _AREA)
+    moved = board[source]
+    hash_a ^= _FLAT_HASH_KEYS[source, moved, 0] ^ _FLAT_HASH_KEYS[target, moved, 0]
+    hash_d ^= _FLAT_HASH_KEYS[source, moved, 1] ^ _FLAT_HASH_KEYS[target, moved, 1]
+    board[source] = _X if source == _CASTLE else 0
+    board[target] = moved
+    if moved == _K:
+        king = target
+
+    count = 0
+    for direction in range(4):
+        far_square = _BEYOND[target, direction]
+        if far_square < 0:
+            continue
+        adjacent = _NEAR[target, direction]
+        victim = board[adjacent]
+        far = board[far_square]
+        capture = False
+        if moved != _A:
+            capture = victim == _A and (far == _D or far == _K or far == _X)
+        elif victim == _D:
+            capture = far == _A or far == _X
+            if far == _K and far_square == _CASTLE:
+                surrounding = 0
+                for axis in range(4):
+                    surrounding += board[_NEAR[_CASTLE, axis]] == _A
+                capture = surrounding >= 3
+        elif victim == _K:
+            if _KING_CASTLE[adjacent]:
+                capture = True
+                for axis in range(4):
+                    around = board[_NEAR[adjacent, axis]]
+                    if around != _A and around != _X:
+                        capture = False
+                        break
+            else:
+                capture = far == _A
+        if capture:
+            board[adjacent] = 0
+            squares[count] = adjacent
+            pieces[count] = victim
+            count += 1
+            hash_a ^= _FLAT_HASH_KEYS[adjacent, victim, 0]
+            hash_d ^= _FLAT_HASH_KEYS[adjacent, victim, 1]
+            if victim == _A:
+                attackers -= 1
+            elif victim == _D:
+                defenders -= 1
+            else:
+                king = -1
+    return hash_a, hash_d, attackers, defenders, king, count
+
+
+@_njit(inline="always")
+def _pop(board, move, squares, pieces, captures):
+    source, target = divmod(move, _AREA)
+    board[source] = board[target]
+    board[target] = 0
+    for capture in range(captures):
+        board[squares[capture]] = pieces[capture]
+
+
+@_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+def _king_win(board, attacker, king):
+    """Return an immediate king capture or escape as an encoded move."""
+    if not attacker:
+        for direction in range(4):
+            target = _NEAR[king, direction]
+            while target >= 0:
+                occupant = board[target]
+                if occupant == 0 and _EDGE[target]:
+                    return king * _AREA + target
+                if occupant != 0 and occupant != _X:
+                    break
+                target = _NEAR[target, direction]
+        return -1
+    for direction in range(4):
+        target = _NEAR[king, direction]
+        opposite = _NEAR[king, (direction + 2) % 4]
+        if target < 0 or opposite < 0 or board[target] != 0:
+            continue
+        if _KING_CASTLE[king]:
+            supported = True
+            for other in range(4):
+                if other != direction:
+                    occupant = board[_NEAR[king, other]]
+                    if occupant != _A and occupant != _X:
+                        supported = False
+                        break
+            if not supported:
+                continue
+        elif board[opposite] != _A:
+            continue
+        for ray in range(4):
+            source = _NEAR[target, ray]
+            while source >= 0:
+                occupant = board[source]
+                if occupant == _A:
+                    return source * _AREA + target
+                if occupant != 0 and occupant != _X:
+                    break
+                source = _NEAR[source, ray]
+    return -1
+
+
+@_njit(no_cfunc_wrapper=True)
+def _immediate_win(board, attacker, attackers, king, scratch):
+    move = _king_win(board, attacker, king)
+    if move >= 0 or attacker or attackers > 5:
+        return move
+
+    # A defender can win without moving the king by taking the last attackers.
+    count = _legal(board, False, scratch)
+    needed = attackers - 1
+    for index in range(count):
+        move = scratch[index]
+        source, target = divmod(move, _AREA)
+        captured = 0
+        for direction in range(4):
+            far = _BEYOND[target, direction]
+            if far < 0 or board[_NEAR[target, direction]] != _A:
+                continue
+            support = board[far]
+            if far == source:
+                support = _X if source == _CASTLE else 0
+            if support == _D or support == _K or support == _X:
+                captured += 1
+        if captured >= needed:
+            return move
+    return -1

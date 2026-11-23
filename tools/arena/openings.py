@@ -98,11 +98,11 @@ def _has_immediate_win(board: list[list[str]], attacker: bool) -> bool:
                for move in engine.get_legal_moves(board, attacker))
 
 
-def generate(seed: int = SEED) -> list[Opening]:
+def generate(seed: int = SEED, *, exclude: tuple[Opening, ...] = ()) -> list[Opening]:
     rng = random.Random(seed)
     suite = []
     hashes = set()
-    symmetries = set()
+    symmetries = {_symmetry_key(start(opening).referee.board) for opening in exclude}
     for _ in range(10_000):
         game = Tablut.Tablut()
         game.past_positions = [game.compute_zobrist_hash(True)]
