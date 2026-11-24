@@ -6,6 +6,7 @@ from io import StringIO
 import re
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -39,7 +40,14 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(runner._select_teams(" Top6, GRANDMASTER-NUMBA "), TOP6_TEAMS)
         self.assertEqual(runner._select_teams("v2, QSearch-PVS, bFs"),
                          ("Team19-v2", "QSearch-PVS", "BFS-Strategist"))
-        self.assertEqual(runner._select_teams("ALL"), tuple(runner.TEAMS))
+        all_teams = tuple(name for name in runner.TEAMS if name != "Team19-New")
+        self.assertEqual(runner.TEAMS["Team19-New"].module, runner.TEAMS["Team19-v4"].module)
+        self.assertEqual(runner._select_teams("ALL"), all_teams)
+        self.assertEqual(runner._select_teams("ALL,new"), all_teams)
+        self.assertEqual(runner._select_teams("new,gm"), ("Team19-New", "Grandmaster-Numba"))
+        self.assertEqual(runner._team_name("new", all_teams), "Team19-v4")
+        with self.assertRaisesRegex(ValueError, "两个不同队伍"):
+            runner._select_teams("new,v4")
         listed = self.cli("--list-teams")
         for full_name, team in runner.TEAMS.items():
             self.assertEqual(runner._team_name(team.alias.upper()), full_name)
@@ -51,7 +59,7 @@ class ExperimentTests(unittest.TestCase):
         with patch.object(runner, "run_match") as play:
             output = self.cli("--teams", "top6", "--budgets", "60,10", "--games-per-pair", "24", "--dry-run")
         self.assertLess(output.index("60 秒档 · 360 局"), output.index("10 秒档 · 360 局"))
-        self.assertIn("12 个固定开局换边", output)
+        self.assertIn("12 个固定开局 × 换边", output)
         self.assertEqual(output.count("可复用 0 局 · 待跑 360 局"), 2)
         self.assertIn("合计 720 局", output)
         self.assertIn("14h00m", output)
@@ -59,10 +67,59 @@ class ExperimentTests(unittest.TestCase):
         self.assertFalse(self.results.exists())
         play.assert_not_called()
 
+    def test_standard_opening_dry_run_schedules_all_unique_teams_in_both_budgets(self):
+        with (patch.object(runner, "load_suite") as suite,
+              patch.object(runner, "run_match") as play):
+            output = self.cli("--teams", "all", "--standard-opening", "--budgets", "60,10", "--dry-run")
+        self.assertIn("14 队全循环 · 标准初始盘面 × 换边（预走 0 手） · 每组 2 局", output)
+        self.assertIn("60 秒档 · 182 局", output)
+        self.assertIn("10 秒档 · 182 局", output)
+        self.assertIn("合计 364 局", output)
+        self.assertNotIn("Team19-New", output)
+        self.assertFalse(self.results.exists())
+        suite.assert_not_called()
+        play.assert_not_called()
+
+    def test_standard_opening_logs_and_resume_stay_separate_from_fixed_openings(self):
+        recipe = ("--teams", "greedy,random")
+        with patch.object(runner, "run_match", side_effect=forfeited_match) as play:
+            self.cli(*recipe, "--no-dashboard")
+            fixed, = self.results.glob("*.jsonl")
+            fixed_rows = report.load(fixed)
+            prior = fixed.read_bytes()
+            play.reset_mock()
+            self.cli(*recipe, "--standard-opening", "--limit", "1")
+            self.assertEqual(play.call_count, 1)
+            opening = play.call_args.args[0].opening
+            self.assertEqual(opening, runner.fixture_for(SimpleNamespace(stage="official"))[0].opening)
+            self.assertEqual(opening.moves, [])
+
+            standard, = self.results.glob("arena-standard-*-60s.jsonl")
+            first, = report.load(standard)
+            self.assertEqual((first["opening"], first["prefix"]), ("standard", []))
+            self.assertEqual(first["initial"], openings.position(runner.Tablut.Tablut(), True))
+            self.assertNotEqual(first["schedule"], fixed_rows[0]["schedule"])
+            self.assertNotEqual(standard.stem.removeprefix("arena-standard-"), fixed.stem.removeprefix("arena-"))
+            html = (self.results / "dashboard.html").read_text(encoding="utf-8")
+            self.assertIn("<li>标准初始盘面 × 换边（预走 0 手）</li>", html)
+            self.assertIn("--resume --standard-opening", html)
+
+            play.reset_mock()
+            self.cli(*recipe, "--standard-opening", "--resume")
+            self.assertEqual(play.call_count, 1)
+            rows = report.load(standard)
+            self.assertEqual([row["id"] for row in rows], [
+                "60-standard-GreedyBot-A-RandomBot",
+                "60-standard-RandomBot-A-GreedyBot",
+            ])
+            self.assertEqual([row["prefix"] for row in rows], [[], []])
+            self.assertEqual(fixed.read_bytes(), prior)
+
     def test_invalid_configuration_fails_before_running(self):
         invalid = (
             (("--games-per-pair", "5"), "正偶数"),
             (("--games-per-pair", "26"), "每组最多 24 局"),
+            (("--standard-opening", "--games-per-pair", "4"), "--standard-opening 要求 --games-per-pair 为 2"),
             (("--budgets", "10,nan"), "有限的正数"),
             (("--budgets", "60,60.0"), "只能指定一次"),
             (("--format", "1vn", "--anchor", "random"), "必须在 --teams 中"),
@@ -75,6 +132,13 @@ class ExperimentTests(unittest.TestCase):
                     runner.main(["--teams", "v2,gm", *params])
                 self.assertEqual(failure.exception.code, 2)
                 self.assertIn(error, output.getvalue())
+        self.assertFalse(self.results.exists())
+
+    def test_standard_opening_requires_teams(self):
+        with redirect_stderr(StringIO()) as output, self.assertRaises(SystemExit) as failure:
+            runner.main(["--stage", "official", "--standard-opening"])
+        self.assertEqual(failure.exception.code, 2)
+        self.assertIn("--standard-opening 需要搭配 --teams", output.getvalue())
         self.assertFalse(self.results.exists())
 
     def test_wheel_uses_the_first_team_or_explicit_anchor(self):

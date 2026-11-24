@@ -15,6 +15,7 @@ class Schedule:
     budget: float
     openings: tuple[str, ...]
     anchor: str | None = None
+    standard_opening: bool = False
 
     def pairs(self):
         if self.anchor is None:
@@ -32,6 +33,12 @@ class Schedule:
     @property
     def format_label(self):
         return f"1v{len(self.teams) - 1} 车轮战" if self.anchor else f"{len(self.teams)} 队全循环"
+
+    @property
+    def opening_label(self):
+        if self.standard_opening:
+            return "标准初始盘面 × 换边（预走 0 手）"
+        return f"前 {len(self.openings)} 个固定开局 × 换边"
 
     @property
     def title(self):

@@ -10,8 +10,11 @@ from .report import FORFEITS, REASON_LABELS
 
 
 V2 = "Team19-v2"
+V3 = "Team19-v3"
+V4 = "Team19-v4"
 LABELS = {
-    V2: "v2", "Grandmaster-Numba": "Numba", "QSearch-PVS": "QSearch",
+    V2: "v2", V3: "v3", V4: "v4", "Grandmaster-Numba": "Numba", "Grandmaster-Plus": "GM Plus",
+    "QSearch-PVS": "QSearch",
     "Team19-91ffcc8": "91ffcc8", "BFS-Strategist": "BFS", "Guided-MCTS": "MCTS",
     "Team19-New": "New", "Team19-PreFix": "PreFix", "Team19-Old": "Old",
     "GreedyBot": "Greedy", "NaiveAB-D2": "AB-D2", "RandomBot": "Random",
@@ -66,7 +69,7 @@ def _side_bar(label, variant, score):
 
 def _overview(stages: dict[str, Stage]):
     schedule = next(iter(stages.values())).schedule
-    focus = schedule.anchor or (V2 if V2 in schedule.teams else schedule.teams[0])
+    focus = schedule.anchor or next((name for name in (V4, V3, V2) if name in schedule.teams), schedule.teams[0])
     short_name = LABELS.get(focus, focus)
     played = sum(stage.games for stage in stages.values())
     planned = sum(stage.schedule.games for stage in stages.values())
@@ -115,7 +118,7 @@ def _standings(stage: Stage):
         marks = f"{team.marks:.2f}" if team.marks is not None else "—"
         points = score.points if score.games else "—"
         record = score.record if score.games else "—"
-        style = ' class="highlight"' if team.name == V2 else ""
+        style = ' class="highlight"' if team.name in (V4, V3, V2) else ""
         rank_cell = "" if anchor else f"<td>{rank}</td>"
         marks_cell = "" if anchor else f"<td>{marks}</td>"
         rows.append(f'<tr{style}>{rank_cell}<th scope="row">{team.name}</th><td>{score.games}</td>'
@@ -217,7 +220,7 @@ def _stability(stage: Stage):
     for team in stage.schedule.teams:
         stats = _incidents(stage.stability[team])
         cells = "".join(f"<td>{num}</td>" for num in stats)
-        style = ' class="highlight"' if team == V2 else ""
+        style = ' class="highlight"' if team in (V4, V3, V2) else ""
         rows.append(f'<tr{style}><th scope="row">{team}</th>{cells}</tr>')
     table = ('<table class="stability"><thead><tr><th>队伍</th><th>超时</th><th>非法步</th>'
              f'<th>异常</th><th>兜底</th></tr></thead><tbody>{"".join(rows)}</tbody></table>')
@@ -228,7 +231,7 @@ def _stability(stage: Stage):
 def _round(stage: Stage, resume_command: str | None):
     schedule = stage.schedule
     pairs = sum(1 for _ in schedule.pairs())
-    rules = [f"每方整局 {stage.budget:g} 秒", f"前 {len(schedule.openings)} 个固定开局 × 换边",
+    rules = [f"每方整局 {stage.budget:g} 秒", schedule.opening_label,
              f"{schedule.format_label} · {pairs} 组各 {schedule.games_per_pair} 局", "胜 2 / 和 1 / 负 0"]
     if schedule.anchor:
         rules.append(f"擂主 {schedule.anchor}")
