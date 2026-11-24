@@ -15,8 +15,13 @@ COMMITS = {
     "v_e3d64c4": "e3d64c4308d63be81453d691db8cb215368de645",
     "v_91ffcc8": "91ffcc8a087d377b56608ce5869893d0865f67da",
     "v_3edc85c": "3edc85c7926fe7b8c4659be29857152bcda73367",
+    "v_be23011": "be2301140ca69bb742db63287b715d35ab362b4d",
 }
 FILES = ("Team19.py", "Team19_engine.py", "Team19_eval.py", "Team19_search.py")
+EXTRA_FILES = {
+    "v_3edc85c": ("Team19_weights.py",),
+    "v_be23011": ("Team19_tt.py", "Team19_weights.py"),
+}
 
 
 def package_imports(source: str) -> str:
@@ -42,7 +47,7 @@ def export(repo: Path, versions=tuple(COMMITS)) -> None:
         path.mkdir(exist_ok=True)
         (path / "__init__.py").write_text('"""Isolated Team19 snapshot."""\n', encoding="utf-8")
         hashes = {}
-        files = FILES + ("Team19_weights.py",) if package == "v_3edc85c" else FILES
+        files = FILES + EXTRA_FILES.get(package, ())
         for name in files:
             raw = subprocess.check_output(("git", "show", f"{commit}:{name}"), cwd=repo)
             source = package_imports(raw.decode("utf-8").replace("\r\n", "\n"))

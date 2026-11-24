@@ -8,7 +8,8 @@
 
 | 简称 | 全名 | 简介 |
 | --- | --- | --- |
-| `v3` | Team19-v3 | 当前提交版，路径安全分值置换表 |
+| `v4` | Team19-v4 | 当前提交版，逃线战术搜索与关键回合加时 |
+| `v3` | Team19-v3 | 分值置换表版快照 be23011 |
 | `v2` | Team19-v2 | 时钟及收官补丁版快照 3edc85c |
 | `gmp` | Grandmaster-Plus | Grandmaster 原估值，增强搜索和时钟 |
 | `gm` | Grandmaster-Numba | 原版手调权重和搜索 |
@@ -23,15 +24,18 @@
 | `random` | RandomBot | 随机合法步冒烟基线 |
 | `new` | Team19-New | 历史赛段入口，运行当前根目录版本 |
 
-`top6` 选 v2、gm、qs、bfs、91f、mcts。`all` 选表中所有条目，包含与 v3 共用实现的历史入口 new。
+`top6` 选 v2、gm、qs、bfs、91f、mcts。`all` 选表中所有条目，包含与 v4 共用实现的历史入口 new。
 
 ## 常用命令
 
 `--games-per-pair` 取 **2 至 24 的偶数**，默认 2。每组用前 N/2 个固定开局，每个开局换边各打一局。`--budgets` 默认 60，可按顺序指定多档，每个数是**每方整局秒数**。默认 `--format rr` 打全循环。`1vn` 只安排擂主对各挑战者，默认取队伍列表第一项。
 
 ```powershell
-# 两组搜索架构对照。每档 6 组 × 24 局，共 288 局
-python -X utf8 -B -m tools.arena.runner --teams v3,v2,gmp,gm --format rr --games-per-pair 24 --budgets 60,10 --workers 1 --fresh
+# v4 对 v3。每档 24 局，共 48 局
+python -X utf8 -B -m tools.arena.runner --teams v4,v3 --format rr --games-per-pair 24 --budgets 60,10 --workers 1 --fresh
+
+# 四队全循环。每档 6 组 × 24 局，共 288 局
+python -X utf8 -B -m tools.arena.runner --teams v4,v3,gmp,gm --format rr --games-per-pair 24 --budgets 60,10 --workers 1 --fresh
 
 # 六强双档封板。每档 15 组 × 24 局，共 720 局。已有同配置赛果会先归档
 python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60,10 --fresh
@@ -40,7 +44,7 @@ python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budge
 python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60
 
 # 快速 1v4 车轮战，共 16 局
-python -X utf8 -B -m tools.arena.runner --teams v3,gm,qs,bfs,mcts --format 1vn --anchor v3 --games-per-pair 4 --budgets 10
+python -X utf8 -B -m tools.arena.runner --teams v4,gm,qs,bfs,mcts --format 1vn --anchor v4 --games-per-pair 4 --budgets 10
 
 # 预览赛程、已有记录、可复用局数和按双方用满预算估算的耗时
 python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60,10 --dry-run
@@ -48,19 +52,21 @@ python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budge
 # Ctrl+C 中断后保留原赛程参数，只用 --resume 续跑
 python -X utf8 -B -m tools.arena.runner --teams top6 --games-per-pair 24 --budgets 60,10 --resume
 
-# v3 单独更新后，保留同配置下其他队伍之间已完成的局
-python -X utf8 -B -m tools.arena.runner --teams v3,v2,gmp,gm --format rr --games-per-pair 24 --budgets 60,10 --rerun-team v3
+# v4 单独更新后，保留同配置下其他队伍之间已完成的局
+python -X utf8 -B -m tools.arena.runner --teams v4,v3,gmp,gm --format rr --games-per-pair 24 --budgets 60,10 --rerun-team v4
 ```
 
 `--fresh`、`--resume` 和 `--rerun-team` 三选一。双档 `--fresh` 在首局前归档两档旧赛果。局部重跑会验证复用棋谱，同一实现的多个参赛名会一并重跑。改动影响多队共用代码时，用 `--fresh` 重测。可用 `--run-id` 给独立实验加名称前缀。
 
-## 四队搜索对照
+## v4 战术与分时对照
 
-`v3` 和 `v2` 使用同一套 22 维进化权重。比较它们可以单独看置换表升级的影响。`gmp` 直接共用 `gm` 的手调估值，比较的是置换表、晚着缩减和时钟保护的组合。两组均从同一批开局换边，适合再看两种估值的交叉对局。
+`v4` 与 `v3` 共用 22 维进化权重。对照重点是静搜中的护卫开线与国王转线、封堵类走法排序及晚着保护，以及长预算下的关键回合加时。`v2` 保留作置换表升级前的对照。`gmp` 与 `gm` 共用原版手调估值。
+
+v4 的逐手日志中，`live_replies` 是 D1 找到的可避开下一手落败的合法走法数，`used_hard_limit` 表示该手曾允许搜索使用加时上限。
 
 v3 与 gmp 的分值表各有 524,288 项，约 8 MiB。相同局面可跨走法顺序复用深度足够、搜索模式一致的分值。搜索先判重复，再读分值。搜索中遇到重复的节点只写走法提示，中止分支不写表。根节点、静搜和杀棋认证不使用分值截断，使用过分值截断或晚着缩减的杀棋需完整复搜。每手日志的 `tt_cutoffs` 记录实际发生的分值截断。gmp 使用本机单调钟检查截止时间。
 
-当前正式提交时带上根目录的全部 `Team19*.py`，其中 `Team19_tt.py` 提供共用的置换表逻辑。
+当前正式提交时带上根目录的全部 `Team19*.py`，包括置换表 `Team19_tt.py` 和战术判断 `Team19_tactics.py`。
 
 ## 赛果与看板
 
@@ -118,6 +124,6 @@ Grandmaster-Numba 在创建选手时运行一次初始盘面的 D1 搜索完成�
 最终盘面。对称等价局面只保留一个。
 
 `python -B -m tools.arena.openings` 可重新生成开局库。
-`python -B -m tools.arena.export_snapshots` 从四个固定 Git 提交导出历史版本，
+`python -B -m tools.arena.export_snapshots` 从五个固定 Git 提交导出历史版本，
 仅调整模块间导入，并记录导出前的文件哈希。参赛时每个版本都用独立包名，
 共用同一个官方裁判模块和时限。

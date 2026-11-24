@@ -1,0 +1,11 @@
+{
+  "commit": "be2301140ca69bb742db63287b715d35ab362b4d",
+  "original_sha256": {
+    "Team19.py": "c8b4a82fe91ece290740c3c84e20bc6a4ee52760eda3835a5c13fc79c8663502",
+    "Team19_engine.py": "aad570893047752b86f400ee69e15b129d477bc1dff2f774dc74af646d6b390e",
+    "Team19_eval.py": "df39df64b9a00f40e306031ed81b8bef4e538ff82993795321cfeb93745698b9",
+    "Team19_search.py": "31988b6fa5775b30a1ad4294cca9e5daece0ba01e6406a3640b100f8faacf083",
+    "Team19_tt.py": "d9e61427dfecf7c734fd9e52482993ec6b7b3abefdec5406e5f3de9339aa87b8",
+    "Team19_weights.py": "acee6ccdba1e0999c8b78ee878e36ba2d281f30b8f1c78b195cc14c959ffef63"
+  }
+}

@@ -526,6 +526,11 @@ try:
         DEFAULT_WEIGHTS as _PYTHON_DEFAULT_WEIGHTS,
         _NATIVE_DISTANCE, _NATIVE_EDGE_DISTANCE, _native_evaluate, _native_piece_bonus,
     )
+    from Team19_tactics import (
+        _LANE_KEYS, _RAY, captures_screen, defender_capture_targets, escape_lines, exposed_stops, guard_releases,
+        guard_release_replies, guard_reply_profile, king_turn_lanes, king_turn_replies,
+        leaves_open_lane, screen_priority,
+    )
 except ImportError:
     _NATIVE_AVAILABLE = False
 else:
@@ -534,11 +539,19 @@ else:
 
 _MATE = int(WIN_SCORE)
 _Q_LIMIT = 4
+_QUIET_REPLY_LIMIT = 4
+_QUIET_REPLY_STEP = 1200
+_QUIET_ESCAPE_PRIORITY = 8200
 _NATIVE_PLY_SLOTS = _MAX_ITERATIVE_DEPTH + _Q_LIMIT + 2
 _ATTACKER_REPETITION_SCORE = -3000
 _SIEGE_SCORE_THRESHOLD = 7500
 (_NODE_COUNT, _CUTOFFS, _REDUCTIONS, _RESEARCHES, _STOPPED, _EVALUATIONS,
- _REPETITIONS, _TT_CUTOFFS) = range(8)
+ _REPETITIONS, _TT_CUTOFFS, _ROOT_REPLIES) = range(9)
+# The final reply to an immediate escape may still face a one-move win.
+_CHECK_WIN_LEAF = -1
+# A quiet defender threat has already established an open lane and ruled out
+# an immediate king capture. Preserve the quiescence depth in the low values.
+_QUIET_ESCAPE_REPLY = 8
 
 
 # Read the OS monotonic counter from compiled search, without objmode or a
@@ -592,6 +605,8 @@ class _NativeWork(NamedTuple):
     queue: np.ndarray
     seen: np.ndarray
     scratch: np.ndarray
+    quiet: np.ndarray
+    stops: np.ndarray
     clock: np.ndarray
     counts: np.ndarray
     weights: np.ndarray
@@ -611,8 +626,10 @@ def _native_work(weights) -> _NativeWork:
         np.empty(_AREA, dtype=np.int16),
         np.empty(_AREA, dtype=np.bool_),
         np.empty(_MOVE_CAPACITY, dtype=np.int16),
+        np.empty((_MOVE_CAPACITY, 3), dtype=np.int64),
+        np.empty((_NATIVE_PLY_SLOTS, 4), dtype=np.int16),
         np.empty(2, dtype=_CLOCK_DTYPE),
-        np.zeros(8, dtype=np.int64),
+        np.zeros(9, dtype=np.int64),
         weights,
         _native_piece_bonus(weights),
     )
@@ -639,10 +656,115 @@ def _native_capture_priority(board, source, target, attacker):
 
 
 @_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
-def _native_order(board, attacker, king, ply, normal, danger, hint, work):
+def _native_quiet_order(board, king, moves, priorities, count, stops, lone_attackers,
+                        lone_guards, quiet, qleft):
+    """Keep captures and up to two quiet threats to distinct exits."""
+    useful, threats = 0, 0
+    best_move, best_priority, best_lanes = -1, 0, 0
+    reply_limit = _QUIET_REPLY_LIMIT
+    profiled_guard = -1
+    guard_profile = (0, 0, np.uint64(0), np.uint64(0), np.uint64(0), np.uint64(0))
+    capture_low = capture_high = np.uint64(0xffffffffffffffff)
+    if count >= 32:
+        capture_low, capture_high = defender_capture_targets(board)
+    for index in range(count):
+        move = moves[index]
+        source, target = divmod(move, _AREA)
+        king_step = source == king
+        priority = 0
+        bit = np.uint64(1) << np.uint64(target & 63)
+        if (capture_low if target < 64 else capture_high) & bit:
+            priority = _native_capture_priority(board, source, target, False)
+        if priority:
+            if lone_attackers and captures_screen(board, source, target, stops, lone_attackers):
+                priority += 3600
+            if king_step:
+                priority += 220 * (_NATIVE_EDGE_DISTANCE[source] - _NATIVE_EDGE_DISTANCE[target])
+            moves[useful], priorities[useful] = move, 2 * priority
+            useful += 1
+            continue
+
+        if king_step:
+            lanes = king_turn_lanes(board, source, target)
+            escape_king = target
+            preference = 40 - 8 * _NATIVE_EDGE_DISTANCE[target]
+        elif lone_guards and guard_releases(source, target, king, lone_guards):
+            guard_lane = _RAY[king, source]
+            lanes = 1 << guard_lane
+            escape_king = king
+            preference = -_NATIVE_DISTANCE[king, target]
+        else:
+            continue
+        if not lanes:
+            continue
+        exits = _LANE_KEYS[escape_king, lanes]
+        max_priority = _QUIET_ESCAPE_PRIORITY + preference
+        if max_priority <= best_priority and exits & ~best_lanes == 0:
+            continue
+        if king_step:
+            replies = king_turn_replies(board, source, target, lanes, reply_limit)
+        else:
+            if profiled_guard != source:
+                guard_profile = guard_reply_profile(board, source, king, guard_lane, reply_limit)
+                profiled_guard = source
+            replies = guard_release_replies(guard_profile, target, reply_limit)
+        if replies >= reply_limit:
+            continue
+        priority = max_priority - replies * _QUIET_REPLY_STEP
+        quiet[threats, 0] = move
+        quiet[threats, 1] = priority
+        quiet[threats, 2] = exits
+        threats += 1
+        if priority > best_priority:
+            best_move, best_priority, best_lanes = move, priority, exits
+            reply_limit = min(reply_limit, replies + 2)
+
+    if best_move >= 0:
+        moves[useful], priorities[useful] = best_move, 2 * best_priority
+        useful += 1
+        # A second move must threaten a new edge square and leave at most
+        # one more reply than the best move.
+        reply_band = best_priority // _QUIET_REPLY_STEP - 1
+        if qleft == 2:
+            # At the last threat layer, spend the second slot only on an
+            # exit with no more than one direct block.
+            reply_band = max(reply_band, _QUIET_ESCAPE_PRIORITY // _QUIET_REPLY_STEP - 1)
+        alternate, alternate_priority = -1, reply_band * _QUIET_REPLY_STEP
+        for index in range(threats):
+            priority = quiet[index, 1]
+            if priority > alternate_priority and quiet[index, 2] & ~best_lanes:
+                alternate, alternate_priority = quiet[index, 0], priority
+        if alternate >= 0:
+            moves[useful], priorities[useful] = alternate, 2 * alternate_priority
+            useful += 1
+    return useful
+
+
+@_njit(no_cpython_wrapper=True, no_cfunc_wrapper=True)
+def _native_order(board, attacker, king, ply, normal, danger, hint, work, can_reduce, qleft):
     moves, priorities = work.moves[ply], work.priorities[ply]
     count = _legal(board, attacker, moves)
     side = 0 if attacker else 1
+    sort_screens = attacker and (danger or normal and (ply == 0 or can_reduce and king != _CASTLE))
+    quiet_threats = not attacker and not normal and not danger and qleft >= 2
+    protect_guards = not attacker and can_reduce and king != _CASTLE
+    open_lanes = lone_attackers = lone_guards = vulnerable = 0
+    lower = upper = np.uint64(0)
+    stops = work.stops[ply]
+    if sort_screens or quiet_threats or protect_guards:
+        open_lanes, lone_attackers, lone_guards = escape_lines(board, king, stops)
+        if quiet_threats:
+            useful = _native_quiet_order(
+                board, king, moves, priorities, count, stops, lone_attackers, lone_guards, work.quiet, qleft,
+            )
+            return useful, 0
+        if sort_screens and lone_attackers:
+            vulnerable, lower, upper = exposed_stops(board, stops, lone_attackers)
+            if ply and not danger and _NATIVE_EDGE_DISTANCE[king] >= 3:
+                lone_attackers = vulnerable
+        sort_screens = sort_screens and (open_lanes != 0 or lone_attackers != 0)
+        protect_guards = protect_guards and lone_guards != 0
+
     useful = 0
     for index in range(count):
         move = moves[index]
@@ -652,6 +774,15 @@ def _native_order(board, attacker, king, ply, normal, danger, hint, work):
         if not normal and not danger and tactical == 0 and not king_contact:
             continue
         priority = tactical
+        protected = False
+        if sort_screens:
+            screen = screen_priority(source, target, king, open_lanes, lone_attackers,
+                                     vulnerable, lower, upper)
+            priority += screen
+            protected = screen > 0
+        elif protect_guards and guard_releases(source, target, king, lone_guards):
+            priority += 2200
+            protected = True
         if board[source] == _K:
             priority += 220 * (_NATIVE_EDGE_DISTANCE[source] - _NATIVE_EDGE_DISTANCE[target])
         if normal:
@@ -662,9 +793,10 @@ def _native_order(board, attacker, king, ply, normal, danger, hint, work):
             elif move == work.killers[ply, 1]:
                 priority += 4000
             priority += min(3500, work.history[side, move])
-        moves[useful], priorities[useful] = move, priority
+        # The low bit tags moves that must keep their full depth under LMR.
+        moves[useful], priorities[useful] = move, 2 * priority + int(protected)
         useful += 1
-    return useful
+    return useful, open_lanes if attacker else 0
 
 
 @_njit(inline="always")
@@ -730,6 +862,15 @@ def _native_score(board, attacker, attackers, defenders, king, work, siege):
     return value if attacker else -value
 
 
+@_njit(inline="always")
+def _native_enter(work, deadline):
+    counts = work.counts
+    counts[_NODE_COUNT] += 1
+    if counts[_NODE_COUNT] & 511 == 0 and _native_now(work.clock) >= deadline:
+        counts[_STOPPED] = 1
+    return not counts[_STOPPED]
+
+
 # The caller owns every array, including the recursive frames. The kernel only
 # returns scalars, so no Numba-managed allocation is needed during recursion.
 @_njit(no_cfunc_wrapper=True, _nrt=False)
@@ -737,10 +878,7 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
                   depth, qleft, ply, alpha, beta, deadline, played, work, lmr,
                   repetition_score, siege):
     counts = work.counts
-    counts[_NODE_COUNT] += 1
-    if counts[_NODE_COUNT] & 511 == 0 and _native_now(work.clock) >= deadline:
-        counts[_STOPPED] = 1
-    if counts[_STOPPED]:
+    if not _native_enter(work, deadline):
         return 0, -1
 
     winner = _winner(attackers, king)
@@ -756,6 +894,9 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         return (draw if attacker else -draw), -1
 
     normal = depth > 0
+    quiet_escape_reply = qleft >= _QUIET_ESCAPE_REPLY
+    if quiet_escape_reply:
+        qleft -= _QUIET_ESCAPE_REPLY
     table = work.tt
     entry = _tt_lookup(table, stamp) if normal else np.uint64(0)
     hint = _tt_move(entry)
@@ -769,20 +910,20 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
             counts[_TT_CUTOFFS] += 1
             return value, hint
 
-    if normal or qleft or ply == 1:
+    if not quiet_escape_reply and (normal or qleft or ply == 1):
         winning_move = _immediate_win(board, attacker, attackers, king, work.scratch)
         if winning_move >= 0:
             return _MATE - ply - 1, int(winning_move)
     if not normal:
-        if not _has_legal(board, attacker):
+        if not quiet_escape_reply and not _has_legal(board, attacker):
             return 0, -1
-        if qleft == 0:
+        if qleft <= 0:
             return _native_score(board, attacker, attackers, defenders, king, work, siege), -1
 
     best, best_move = -2 * _MATE, -1
     can_reduce = lmr and depth >= 3 and ply > 0 and beta == alpha + 1
-    danger = False
-    if not normal or can_reduce:
+    danger = quiet_escape_reply
+    if not danger and (not normal or can_reduce):
         danger = _immediate_win(board, not attacker, attackers, king, work.scratch) >= 0
     if not normal and not danger:
         best = _native_score(board, attacker, attackers, defenders, king, work, siege)
@@ -792,13 +933,17 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         alpha = max(alpha, best)
 
     work.path[ply] = stamp
-    useful = _native_order(board, attacker, king, ply, normal, danger, hint, work)
-    if normal and useful == 0:
+    useful, open_lanes = _native_order(
+        board, attacker, king, ply, normal, danger, hint, work, can_reduce, qleft,
+    )
+    if (normal or quiet_escape_reply) and useful == 0:
         return 0, -1
     moves, priorities = work.moves[ply], work.priorities[ply]
     captured_at, captured_pieces = work.captured_at[ply], work.captured_pieces[ply]
     child_depth = max(0, depth - 1)
     child_qleft = qleft if normal else qleft - 1
+    if not normal and qleft == 1 and attacker and danger:
+        child_qleft = _CHECK_WIN_LEAF
     before_alpha = alpha
     before_repetitions = counts[_REPETITIONS]
     first = True
@@ -813,13 +958,18 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         source, target = divmod(move, _AREA)
         ha, hd, a, d, k, captured = _push(board, move, hash_a, hash_d, attackers, defenders,
                                            king, captured_at, captured_pieces)
+        reply_qleft = child_qleft
+        # Defender quiet moves were already checked for an open escape ray.
         if not normal and not danger and captured == 0:
-            if _immediate_win(board, attacker, a, k, work.scratch) < 0:
+            if not attacker:
+                reply_qleft += _QUIET_ESCAPE_REPLY
+            elif _immediate_win(board, attacker, a, k, work.scratch) < 0:
                 _pop(board, move, captured_at, captured_pieces, captured)
                 continue
 
         trial_depth = child_depth
         if (can_reduce and index >= 4 and not danger and captured == 0 and k == king
+                and priorities[index] & 1 == 0
                 and move != hint and move != work.killers[ply, 0] and move != work.killers[ply, 1]
                 and _NATIVE_DISTANCE[king, source] > 2 and _NATIVE_DISTANCE[king, target] > 2
                 and abs(alpha) < _MATE - _NATIVE_PLY_SLOTS
@@ -827,27 +977,39 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
             counts[_REDUCTIONS] += 1
             trial_depth -= 1
 
-        narrow = not first
-        while True:
-            child, _ = _native_visit(
-                board, not attacker, ha, hd, a, d, k, trial_depth, child_qleft, ply + 1,
-                -alpha - 1 if narrow else -beta, -alpha, deadline, played, work, lmr,
-                repetition_score, siege,
-            )
-            if counts[_STOPPED]:
-                break
-            if trial_depth < child_depth and -child > alpha:
-                counts[_RESEARCHES] += 1
-                trial_depth = child_depth
-            elif narrow and alpha < -child < beta:
-                narrow = False
+        if open_lanes and k == king and leaves_open_lane(king, target, open_lanes):
+            # This slide could not close every escape. A live king can still
+            # escape immediately, unless this position ends in a referee draw.
+            _native_enter(work, deadline)
+            if _native_seen(played, work.path, hd, ply + 1):
+                counts[_REPETITIONS] += 1
+                child = -repetition_score
             else:
-                break
+                child = _MATE - ply - 2
+        else:
+            narrow = not first
+            while True:
+                child, _ = _native_visit(
+                    board, not attacker, ha, hd, a, d, k, trial_depth, reply_qleft, ply + 1,
+                    -alpha - 1 if narrow else -beta, -alpha, deadline, played, work, lmr,
+                    repetition_score, siege,
+                )
+                if counts[_STOPPED]:
+                    break
+                if trial_depth < child_depth and -child > alpha:
+                    counts[_RESEARCHES] += 1
+                    trial_depth = child_depth
+                elif narrow and alpha < -child < beta:
+                    narrow = False
+                else:
+                    break
         first = False
         _pop(board, move, captured_at, captured_pieces, captured)
         if counts[_STOPPED]:
             return 0, -1
         value = -child
+        if ply == 0 and depth == 1 and qleft == 0 and value > -_MATE + 2:
+            counts[_ROOT_REPLIES] += 1
         if value > best:
             best, best_move = value, move
         alpha = max(alpha, best)
@@ -877,6 +1039,17 @@ def _native_position(board):
                           root.attackers, root.defenders, king)
 
 
+@_njit(no_cfunc_wrapper=True)
+def _root_escape_alert(board, king, stops):
+    if king < 0:
+        return False
+    open_lanes, lone_attackers, lone_guards = escape_lines(board, king, stops)
+    if open_lanes or (king != _CASTLE and lone_guards):
+        return True
+    vulnerable, _, _ = exposed_stops(board, stops, lone_attackers)
+    return vulnerable != 0
+
+
 @dataclass(frozen=True)
 class _NativeTelemetry:
     depth: int
@@ -886,6 +1059,8 @@ class _NativeTelemetry:
     reductions: int = 0
     reduced_researches: int = 0
     tt_cutoffs: int = 0
+    live_replies: int = 0
+    used_hard_limit: bool = False
 
 
 class _NativeSearch:
@@ -898,6 +1073,7 @@ class _NativeSearch:
 
         self.work = _native_work(native_weights(weights))
         self.legacy_weights = tuple(_PYTHON_DEFAULT_WEIGHTS)
+        self.time_window = None
         self.last_search = None
         self.iterations = []
         self.interrupted_depth = self.interrupted_nodes = None
@@ -913,9 +1089,11 @@ class _NativeSearch:
         advance_generation(self.work.tt)
         self._iteration(flat, True, state, 1, 0, -2 * _MATE, 2 * _MATE,
                         math.inf, np.empty(0, dtype=np.uint64), False)
+        _root_escape_alert(flat, state[4], self.work.stops[0])
 
     def reset_game(self):
         self.work.tt.generation[1] = self.work.tt.generation[0] + 1
+        self.time_window = None
         self.reset_trace()
 
     def reset_trace(self):
@@ -946,16 +1124,27 @@ class _NativeSearch:
         work.history.fill(0)
         work.counts.fill(0)
         now = time.perf_counter()
-        available = max(0.0, deadline - now)
-        search_time = available - min(0.004, available * 0.10)
-        cutoff = _read_native_clock(work.clock) + search_time
-        soft_deadline = now + search_time
+        clock = _read_native_clock(work.clock)
+        hard = deadline
+        if self.time_window is not None and self.time_window[0] == deadline:
+            hard = self.time_window[1]
+        soft_seconds = _search_seconds(deadline - now)
+        hard_seconds = _search_seconds(hard - now)
+        soft_deadline, hard_deadline = now + soft_seconds, now + hard_seconds
+        soft_cutoff, hard_cutoff = clock + soft_seconds, clock + hard_seconds
 
         best, score = -1, 0
+        alert = forced_defence = used_hard = False
+        unstable_until = 0
+        live_replies = 0
         for depth in range(1, _MAX_ITERATIVE_DEPTH + 1):
-            if depth > 1 and time.perf_counter() >= soft_deadline:
-                break
             started = time.perf_counter()
+            extra_time = hard_seconds > soft_seconds and (
+                forced_defence or depth <= unstable_until
+            )
+            if depth > 1 and started >= (hard_deadline if extra_time else soft_deadline):
+                break
+            used_hard |= extra_time
             nodes, cutoffs = int(work.counts[_NODE_COUNT]), int(work.counts[_CUTOFFS])
             evaluated = int(work.counts[_EVALUATIONS])
             reduced = int(work.counts[_REDUCTIONS])
@@ -964,13 +1153,16 @@ class _NativeSearch:
             # immediate threats. It runs even if the deeper-search time is zero.
             first = depth == 1
             qleft = 0 if first else _Q_LIMIT
-            stop_at = math.inf if first else cutoff
+            stop_at = math.inf if first else hard_cutoff if extra_time else soft_cutoff
             alpha, beta = (-2 * _MATE, 2 * _MATE) if first else (score - 850, score + 850)
             value, move = self._iteration(
                 flat, is_attacker, state, depth, qleft, alpha, beta, stop_at, played, True,
                 repetition_score, siege,
             )
             if not first and not work.counts[_STOPPED] and (value <= alpha or value >= beta):
+                if hard_seconds > soft_seconds and (alert or depth >= 3 and abs(value - score) >= 1400):
+                    stop_at = hard_cutoff
+                    used_hard = True
                 value, move = self._iteration(
                     flat, is_attacker, state, depth, qleft, -2 * _MATE, 2 * _MATE,
                     stop_at, played, True, repetition_score, siege,
@@ -992,6 +1184,14 @@ class _NativeSearch:
                     raise ValueError("Native search requires a nonterminal board with legal moves")
                 raise RuntimeError("A completed native depth did not produce a move")
 
+            if first:
+                live_replies = int(work.counts[_ROOT_REPLIES])
+                forced_defence = 1 < live_replies <= 6
+                if hard_seconds > soft_seconds:
+                    alert = forced_defence or _root_escape_alert(flat, state[4], work.stops[0])
+            elif (alert and (abs(value - score) >= 850 or move != best)
+                  or live_replies > 1 and depth >= 3 and abs(value - score) >= 1400):
+                unstable_until = depth + 2
             score, best = value, move
             terminal = _MATE - abs(value) if abs(value) >= _MATE - _NATIVE_PLY_SLOTS else None
             display = math.copysign(WIN_SCORE, value) if terminal is not None else float(value)
@@ -1001,13 +1201,18 @@ class _NativeSearch:
                                   int(work.counts[_CUTOFFS]) - cutoffs, terminal)
             self.iterations.append((depth, result, time.perf_counter() - started,
                                     bool(work.counts[_EVALUATIONS] > evaluated)))
-            if terminal is not None:
+            if terminal is not None or live_replies == 1:
                 break
 
         depth, result, _, _ = self.iterations[-1]
         self.last_search = _NativeTelemetry(
             depth, int(work.counts[_NODE_COUNT]), result.score, False,
             int(work.counts[_REDUCTIONS]), int(work.counts[_RESEARCHES]),
-            int(work.counts[_TT_CUTOFFS]),
+            int(work.counts[_TT_CUTOFFS]), live_replies, used_hard,
         )
         return _move_list(best)
+
+
+def _search_seconds(available: float) -> float:
+    available = max(0.0, available)
+    return available - min(0.004, available * 0.10)

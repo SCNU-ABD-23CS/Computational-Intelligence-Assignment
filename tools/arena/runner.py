@@ -65,7 +65,9 @@ TEAMS.update({
     "Team19-91ffcc8": Team(".snapshots.v_91ffcc8.Team19", "91f", "Numba 重构前快照 91ffcc8",
                          ".snapshots.v_91ffcc8.Team19_search"),
     "Team19-v2": Team(_V2_MODULE, "v2", "时钟及收官补丁版快照 3edc85c", _V2_SEARCH),
-    "Team19-v3": Team("Team19", "v3", "当前提交版，路径安全分值置换表", "Team19_search"),
+    "Team19-v3": Team(".snapshots.v_be23011.Team19", "v3", "分值置换表版快照 be23011",
+                      ".snapshots.v_be23011.Team19_search"),
+    "Team19-v4": Team("Team19", "v4", "逃线战术搜索与关键回合加时", "Team19_search"),
     "Grandmaster-Plus": Team(".bots.grandmaster_plus", "gmp", "Grandmaster 原估值，增强搜索和时钟"),
 })
 TEAM_NAMES = {label.casefold(): name for name, team in TEAMS.items() for label in (name, team.alias)}

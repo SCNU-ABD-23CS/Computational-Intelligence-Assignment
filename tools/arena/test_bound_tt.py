@@ -78,11 +78,11 @@ def _native_cases(board):
     work = search._native_work(native_weights())
     draw = search._ATTACKER_REPETITION_SCORE
 
-    def visit_v3(depth, ply, played, *, qleft=0, deadline=inf, lmr=True, alpha=-WINDOW, beta=WINDOW):
+    def visit_current(depth, ply, played, *, qleft=0, deadline=inf, lmr=True, alpha=-WINDOW, beta=WINDOW):
         return search._native_visit(flat, True, *state, depth, qleft, ply, alpha, beta,
                                     deadline, played, work, lmr, draw, False)
 
-    yield "v3", flat, state, work, 16, draw, search._REDUCTIONS, search._TT_CUTOFFS, visit_v3
+    yield "v4", flat, state, work, 16, draw, search._REDUCTIONS, search._TT_CUTOFFS, visit_current
 
     gm_board = gmp._flat(board)
     gm_state = gm._root_state(gm_board)
@@ -192,9 +192,10 @@ class SearchTableTests(unittest.TestCase):
 
     def test_entrants_keep_their_evaluation_and_frozen_versions(self):
         self.assertIs(gmp._evaluate, gm._evaluate)
-        self.assertEqual(runner._select_teams("v3,v2,gmp,gm"),
-                         ("Team19-v3", "Team19-v2", "Grandmaster-Plus", "Grandmaster-Numba"))
-        self.assertEqual(runner.TEAMS["Team19-v3"].module, "Team19")
+        self.assertEqual(runner._select_teams("v4,v3,v2,gmp,gm"),
+                         ("Team19-v4", "Team19-v3", "Team19-v2", "Grandmaster-Plus", "Grandmaster-Numba"))
+        self.assertEqual(runner.TEAMS["Team19-v4"].module, "Team19")
+        self.assertIn(".v_be23011.", runner.TEAMS["Team19-v3"].module)
         self.assertIn(".v_3edc85c.", runner.TEAMS["Team19-v2"].module)
 
     def test_grandmaster_plus_deadline_poll_stays_inside_native_search(self):

@@ -49,6 +49,8 @@ _LOW_CLOCK = 0.5
 # are still useful when the game clock can afford them.
 _MIN_AVAILABLE_TIME = 0.02
 _SHORT_SEARCH_TIME = 0.008
+_LONG_GAME_BUDGET = 30.0
+_CRITICAL_MOVE_LIMIT = 4.25
 _MIN_MOVES_LEFT = 12
 _MOVES_PER_PIECE = 1.5
 _OPENING_MOVE_ALLOWANCE = 13
@@ -214,6 +216,8 @@ class Player:
 
         chosen = None
         if search is not None and (native or time.perf_counter() < deadline):
+            if native:
+                self._native.time_window = (deadline, started + self._hard_step_budget(step_budget))
             try:
                 result = search(
                     [row[:] for row in position], is_attacker, deadline, set(self.history),
@@ -227,6 +231,9 @@ class Player:
                     chosen = candidate
                     if native:
                         self.last_search = self._native.last_search
+            finally:
+                if native:
+                    self._native.time_window = None
 
         if chosen is None and time.perf_counter() < deadline:
             chosen = self._winning_move(position, is_attacker, legal, deadline)
@@ -262,6 +269,12 @@ class Player:
         )
         fair_share = available / moves_left
         return max(fair_share, short_search)
+
+    def _hard_step_budget(self, soft_budget: float) -> float:
+        if self.total_budget < _LONG_GAME_BUDGET or self.remaining < _LOW_CLOCK:
+            return soft_budget
+        available = self.remaining - _NATIVE_RETURN_RESERVE - _NATIVE_CALL_OVERHEAD
+        return max(soft_budget, min(2.5 * soft_budget, 0.10 * available, _CRITICAL_MOVE_LIMIT))
 
     # =================================================
     # Game history
