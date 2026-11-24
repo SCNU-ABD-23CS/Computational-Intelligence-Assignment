@@ -24,13 +24,18 @@
 | `random` | RandomBot | 随机合法步冒烟基线 |
 | `new` | Team19-New | 历史赛段入口，运行当前根目录版本 |
 
-`top6` 选 v2、gm、qs、bfs、91f、mcts。`all` 选表中所有条目，包含与 v4 共用实现的历史入口 new。
+`top6` 选 v2、gm、qs、bfs、91f、mcts。`all` 每种算法只选一次，当前根目录版本用 `v4` 参赛。`new` 仍可单独指定，供历史赛程和赛果续跑。
 
 ## 常用命令
 
 `--games-per-pair` 取 **2 至 24 的偶数**，默认 2。每组用前 N/2 个固定开局，每个开局换边各打一局。`--budgets` 默认 60，可按顺序指定多档，每个数是**每方整局秒数**。默认 `--format rr` 打全循环。`1vn` 只安排擂主对各挑战者，默认取队伍列表第一项。
 
+`--standard-opening` 配合 `--teams` 使用。从官方标准初始盘面直接开赛，预走 0 手。每组固定 2 局，双方各执攻、执守一次。标准开局赛果写入带 `standard` 标记的独立日志，赛后自动刷新看板。
+
 ```powershell
+# 用全部去重后的算法模拟 60 秒标准开局评测，支持续跑
+python -X utf8 -B -m tools.arena.runner --teams all --standard-opening --format rr --games-per-pair 2 --budgets 60 --workers 1 --resume
+
 # v4 对 v3。每档 24 局，共 48 局
 python -X utf8 -B -m tools.arena.runner --teams v4,v3 --format rr --games-per-pair 24 --budgets 60,10 --workers 1 --fresh
 

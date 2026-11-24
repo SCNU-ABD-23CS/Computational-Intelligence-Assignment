@@ -231,7 +231,7 @@ def _stability(stage: Stage):
 def _round(stage: Stage, resume_command: str | None):
     schedule = stage.schedule
     pairs = sum(1 for _ in schedule.pairs())
-    rules = [f"每方整局 {stage.budget:g} 秒", f"前 {len(schedule.openings)} 个固定开局 × 换边",
+    rules = [f"每方整局 {stage.budget:g} 秒", schedule.opening_label,
              f"{schedule.format_label} · {pairs} 组各 {schedule.games_per_pair} 局", "胜 2 / 和 1 / 负 0"]
     if schedule.anchor:
         rules.append(f"擂主 {schedule.anchor}")
