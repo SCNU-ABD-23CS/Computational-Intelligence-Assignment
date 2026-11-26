@@ -13,7 +13,7 @@ import numpy as np
 import Team19_engine as engine
 
 from .common import NNUE_RESULTS, NativeEvaluator, board_rows, encode_board, write_json
-from .model import load_weights, numpy_residual
+from .model import load_weights, numpy_hidden, numpy_residual
 
 
 def file_sha256(path: Path) -> str:
@@ -119,6 +119,7 @@ def evaluate(weights_path: Path, questions_path: Path) -> dict:
     # Every child has defender to move (side code 0), but both heads remain attacker-positive.
     residual = numpy_residual(weights, flat_boards, np.zeros(len(flat_boards), dtype=np.int8))
     bounded = residual.reshape(-1, 3)
+    hidden = numpy_hidden(weights, flat_boards)
     nnue = static + bounded
     main_indices = [index for index, row in enumerate(questions) if not row["tie_top2"]]
     tie_indices = [index for index, row in enumerate(questions) if row["tie_top2"]]
@@ -141,12 +142,36 @@ def evaluate(weights_path: Path, questions_path: Path) -> dict:
             "nnue_order": sorted(range(3), key=lambda j: (-float(nnue[index, j]), j)),
             "residuals": [float(value) for value in bounded[index]],
         })
+    residual_ranges = np.ptp(bounded, axis=1)
+    one_by_unit = np.mean(hidden >= 1.0, axis=0)
+    diagnostics = {
+        "mean_abs_residual": float(np.mean(np.abs(bounded))),
+        "residual_range_per_question": {
+            "median": float(np.median(residual_ranges)),
+            "p90": float(np.percentile(residual_ranges, 90)),
+            "maximum": float(np.max(residual_ranges)),
+            "zero_range_questions": int(np.sum(residual_ranges == 0.0)),
+            "nonzero_range_questions": int(np.sum(residual_ranges != 0.0)),
+        },
+        "order_changed_vs_static_questions": sum(
+            row["nnue_order"] != row["static_order"] for row in records
+        ),
+        "hidden_activation": {
+            "values_at_one_fraction": float(np.mean(hidden >= 1.0)),
+            "values_at_zero_fraction": float(np.mean(hidden <= 0.0)),
+            "positions_all_32_at_one": int(np.sum(np.all(hidden >= 1.0, axis=1))),
+            "positions_all_32_at_zero": int(np.sum(np.all(hidden <= 0.0, axis=1))),
+            "per_unit_one_saturation_fraction": [float(value) for value in one_by_unit],
+        },
+        "usage": "diagnostic only; never a model-selection or gate metric",
+    }
     return {
         "schema": 1,
         "weights": {"path": str(weights_path), "sha256": file_sha256(weights_path)},
         "questions": {"path": str(questions_path), "sha256": file_sha256(questions_path),
                       "training_or_model_selection_use": False, "d4_augmentation": False},
         "candidate_audit": audit,
+        "model_diagnostics": diagnostics,
         "tie_policy": {
             "main_excludes_tie_top2": True,
             "main_questions": len(main_questions),
@@ -177,6 +202,7 @@ def main() -> None:
         "main": result["main"],
         "tie_top2": result["tie_top2_information_only"],
         "gate": result["gate"],
+        "model_diagnostics": result["model_diagnostics"],
         "output": str(output),
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2), flush=True)

@@ -95,6 +95,10 @@ def load_weights(path: str | Path) -> dict[str, np.ndarray]:
         if missing:
             raise ValueError(f"Missing NNUE weight fields: {sorted(missing)}")
         weights = {key: np.array(data[key], dtype=np.float32, copy=True) for key in WEIGHT_FIELDS}
+        # Artifacts before the scale fix have no activation field and used hard clip.
+        weights["output_activation"] = np.array(
+            str(data["output_activation"]) if "output_activation" in data.files else "clip"
+        )
     expected = {
         "hidden_weight": (HIDDEN, FEATURES),
         "hidden_bias": (HIDDEN,),
@@ -110,7 +114,17 @@ def load_weights(path: str | Path) -> dict[str, np.ndarray]:
             raise ValueError(f"{key} contains non-finite values")
     if float(weights["residual_clip"]) <= 0 or float(weights["eval_scale"]) <= 0:
         raise ValueError("residual_clip and eval_scale must be positive")
+    if str(weights["output_activation"]) not in {"clip", "tanh"}:
+        raise ValueError("output_activation must be 'clip' or 'tanh'")
     return weights
+
+
+def numpy_hidden(weights: dict[str, np.ndarray], boards: np.ndarray) -> np.ndarray:
+    """Expose clipped hidden activations for non-training saturation diagnostics."""
+    features = encode_boards(boards)
+    return np.clip(
+        features @ weights["hidden_weight"].T + weights["hidden_bias"], 0.0, 1.0,
+    ).astype(np.float32)
 
 
 def numpy_residual(weights: dict[str, np.ndarray], boards: np.ndarray,
@@ -119,11 +133,10 @@ def numpy_residual(weights: dict[str, np.ndarray], boards: np.ndarray,
     side = np.asarray(sides, dtype=np.int64)
     if side.shape != (len(boards),) or not np.isin(side, (0, 1)).all():
         raise ValueError("sides must have shape [N] and contain only 0/1")
-    features = encode_boards(boards)
-    hidden = np.clip(
-        features @ weights["hidden_weight"].T + weights["hidden_bias"], 0.0, 1.0,
-    )
+    hidden = numpy_hidden(weights, boards)
     both_heads = hidden @ weights["head_weight"].T + weights["head_bias"]
     selected = both_heads[np.arange(len(boards)), side]
     bound = float(weights["residual_clip"])
+    if str(weights["output_activation"]) == "tanh":
+        return (bound * np.tanh(selected / bound)).astype(np.float32)
     return np.clip(selected, -bound, bound).astype(np.float32)

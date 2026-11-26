@@ -56,6 +56,15 @@ class TrainingContractTests(unittest.TestCase):
         expected = 0.5 + 0.5 / (1 + np.exp(-1000 / 6000))
         self.assertAlmostEqual(float(target[0]), expected, places=6)
 
+    def test_head_initialization_is_small_nonzero_and_asymmetric(self):
+        torch.manual_seed(20261126)
+        model = ResidualNNUE(750, 6000)
+        weights = model.heads.weight.detach().numpy()
+        self.assertGreater(float(np.std(weights)), 0.0)
+        self.assertLess(float(np.max(np.abs(weights))), 0.01)
+        self.assertEqual(int(np.sum(weights == weights[0, 0])), 1)
+        self.assertEqual(model.heads.bias.detach().numpy().tolist(), [0.0, 0.0])
+
     def test_exported_numpy_matches_torch_and_selects_heads(self):
         torch.manual_seed(7)
         model = ResidualNNUE(750, 6000)
@@ -68,6 +77,14 @@ class TrainingContractTests(unittest.TestCase):
             path = Path(directory) / "weights.npz"
             export_weights(model, path)
             weights = load_weights(path)
+            np.testing.assert_allclose(
+                weights["head_weight"], model.heads.weight.detach().numpy() * 750,
+                rtol=1e-6, atol=1e-6,
+            )
+            np.testing.assert_allclose(
+                weights["head_bias"], model.heads.bias.detach().numpy() * 750,
+                rtol=1e-6, atol=1e-6,
+            )
             actual = numpy_residual(weights, boards, sides)
             features = torch.from_numpy(encode_boards(boards))
             base = torch.zeros(2)

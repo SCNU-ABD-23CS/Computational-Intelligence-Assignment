@@ -63,15 +63,19 @@ class ResidualNNUE(nn.Module):
         self.heads = nn.Linear(HIDDEN, HEADS)
         self.residual_clip = float(residual_clip)
         self.eval_scale = float(eval_scale)
-        # Start at the frozen static base; this is not the online zero-weight self-check.
-        nn.init.zeros_(self.heads.weight)
+        # Dimensionless heads start near zero without tying all 32 hidden units
+        # to exactly the same gradient. export_weights applies residual_clip so
+        # deployment keeps the original score-domain NumPy/Numba contract.
+        nn.init.normal_(self.heads.weight, mean=0.0, std=1e-3)
         nn.init.zeros_(self.heads.bias)
 
     def forward(self, features, sides, base_evals):
         hidden = torch.clamp(self.hidden(features), 0.0, 1.0)
         both_heads = self.heads(hidden)
         selected = both_heads.gather(1, sides.reshape(-1, 1)).squeeze(1)
-        residual = torch.clamp(selected, -self.residual_clip, self.residual_clip)
+        # A smooth bound avoids the zero-gradient region reached by the first
+        # linear-scale experiment, whose candidate residuals all clipped to -C.
+        residual = self.residual_clip * torch.tanh(selected)
         prediction = torch.sigmoid((base_evals + residual) / self.eval_scale)
         return prediction, residual
 
@@ -112,11 +116,16 @@ def export_weights(model: ResidualNNUE, path: Path) -> None:
     arrays = {
         "hidden_weight": model.hidden.weight.detach().cpu().numpy().astype(np.float32),
         "hidden_bias": model.hidden.bias.detach().cpu().numpy().astype(np.float32),
-        "head_weight": model.heads.weight.detach().cpu().numpy().astype(np.float32),
-        "head_bias": model.heads.bias.detach().cpu().numpy().astype(np.float32),
+        "head_weight": (
+            model.heads.weight.detach().cpu().numpy() * model.residual_clip
+        ).astype(np.float32),
+        "head_bias": (
+            model.heads.bias.detach().cpu().numpy() * model.residual_clip
+        ).astype(np.float32),
         "residual_clip": np.array(model.residual_clip, dtype=np.float32),
         "eval_scale": np.array(model.eval_scale, dtype=np.float32),
         "feature_layout": np.array("cell-major square*3+plane; planes attacker,defender,king"),
+        "output_activation": np.array("tanh"),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
@@ -239,8 +248,15 @@ def train(args: argparse.Namespace) -> dict:
         "seed": args.seed,
         "device": "cpu",
         "threads": 1,
-        "network": {"input": FEATURES, "hidden": HIDDEN, "heads": HEADS,
-                    "activation": "clipped_relu_[0,1]", "output": "side_selected_attacker_residual"},
+        "network": {
+            "input": FEATURES, "hidden": HIDDEN, "heads": HEADS,
+            "activation": "clipped_relu_[0,1]",
+            "output": "side_selected_attacker_residual",
+            "training_parameterization": "residual_clip * tanh(dimensionless_head)",
+            "deployment_parameterization": "residual_clip * tanh(score_domain_head / residual_clip)",
+            "export": "head_weight and head_bias multiplied by residual_clip",
+            "head_initialization": "Normal(mean=0, std=0.001); zero bias",
+        },
         "feature_layout": "cell-major square*3+plane; planes attacker,defender,king; codes 0/4 empty",
         "residual_clip": args.residual_clip,
         "eval_scale": args.eval_scale,
@@ -292,7 +308,7 @@ def train(args: argparse.Namespace) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", default="volume1200")
-    parser.add_argument("--run-id", default="c750-k6000-l0p5-seed20261126")
+    parser.add_argument("--run-id", default="c750-k6000-l0p5-tanh-seed20261126")
     parser.add_argument("--output")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--seed", type=int, default=20261126)
