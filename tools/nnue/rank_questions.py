@@ -43,6 +43,8 @@ def prepare_candidates(questions: list[dict]) -> tuple[np.ndarray, np.ndarray, n
     audit = {
         "candidate_positions": len(boards),
         "side_selected_for_every_child": "D",
+        "training_only_side_calibration_applied": False,
+        "side_calibration_note": "constant within each question; deliberately excluded from ranking",
         "max_recomputed_static_discrepancy": max_static_discrepancy,
     }
     if max_static_discrepancy > 0.01:

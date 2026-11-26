@@ -61,6 +61,9 @@ class ResidualNNUE(nn.Module):
         super().__init__()
         self.hidden = nn.Linear(FEATURES, HIDDEN)
         self.heads = nn.Linear(HIDDEN, HEADS)
+        # Training/validation-only global calibration in logit space. This absorbs
+        # side-specific base bias without consuming the bounded residual budget.
+        self.side_calib = nn.Parameter(torch.zeros(HEADS))
         self.residual_clip = float(residual_clip)
         self.eval_scale = float(eval_scale)
         # Dimensionless heads start near zero without tying all 32 hidden units
@@ -76,7 +79,9 @@ class ResidualNNUE(nn.Module):
         # A smooth bound avoids the zero-gradient region reached by the first
         # linear-scale experiment, whose candidate residuals all clipped to -C.
         residual = self.residual_clip * torch.tanh(selected)
-        prediction = torch.sigmoid((base_evals + residual) / self.eval_scale)
+        prediction = torch.sigmoid(
+            (base_evals + residual) / self.eval_scale + self.side_calib[sides]
+        )
         return prediction, residual
 
 
@@ -109,6 +114,21 @@ def evaluate(model: ResidualNNUE, arrays: dict[str, np.ndarray], batch_size: int
         "smooth_l1": smooth_l1 / total,
         "nll": nll / total,
         "mean_abs_residual": residual_absolute / total,
+    }
+
+
+def calibration_report(model: ResidualNNUE) -> dict:
+    """Report D/A calibration in logits and equivalent raw-score units."""
+    values = model.side_calib.detach().cpu().numpy()
+    return {
+        "scope": "training_and_validation_only",
+        "exported": False,
+        "used_by_rank_questions": False,
+        "logits": {"D": float(values[0]), "A": float(values[1])},
+        "score_equivalent": {
+            "D": float(values[0] * model.eval_scale),
+            "A": float(values[1] * model.eval_scale),
+        },
     }
 
 
@@ -211,10 +231,12 @@ def train(args: argparse.Namespace) -> dict:
             optimizer.step()
             train_loss += float(loss.detach()) * len(target)
         metrics = evaluate(model, validation)
+        calibration = calibration_report(model)
         record = {
             "epoch": epoch,
             "train_smooth_l1": train_loss / len(order),
             "validation": metrics,
+            "side_calibration": calibration,
             "selected_by": "validation_nll_only",
         }
         with history_path.open("a", encoding="utf-8", newline="\n") as stream:
@@ -222,7 +244,9 @@ def train(args: argparse.Namespace) -> dict:
         print(
             f"epoch={epoch:02d} train={record['train_smooth_l1']:.7f} "
             f"val={metrics['smooth_l1']:.7f} nll={metrics['nll']:.7f} "
-            f"mean|residual|={metrics['mean_abs_residual']:.3f}", flush=True,
+            f"mean|residual|={metrics['mean_abs_residual']:.3f} "
+            f"calibD={calibration['score_equivalent']['D']:.1f} "
+            f"calibA={calibration['score_equivalent']['A']:.1f}", flush=True,
         )
         if metrics["nll"] < best_nll - args.min_delta:
             best_nll = metrics["nll"]
@@ -252,7 +276,7 @@ def train(args: argparse.Namespace) -> dict:
             "input": FEATURES, "hidden": HIDDEN, "heads": HEADS,
             "activation": "clipped_relu_[0,1]",
             "output": "side_selected_attacker_residual",
-            "training_parameterization": "residual_clip * tanh(dimensionless_head)",
+            "training_parameterization": "sigmoid((base + C*tanh(head))/K + side_calib[side])",
             "deployment_parameterization": "residual_clip * tanh(score_domain_head / residual_clip)",
             "export": "head_weight and head_bias multiplied by residual_clip",
             "head_initialization": "Normal(mean=0, std=0.001); zero bias",
@@ -260,6 +284,7 @@ def train(args: argparse.Namespace) -> dict:
         "feature_layout": "cell-major square*3+plane; planes attacker,defender,king; codes 0/4 empty",
         "residual_clip": args.residual_clip,
         "eval_scale": args.eval_scale,
+        "side_calibration": calibration_report(model),
         "outcome_weight": args.outcome_weight,
         "loss": "SmoothL1",
         "optimizer": {"name": "AdamW", "learning_rate": args.learning_rate,
@@ -296,11 +321,13 @@ def train(args: argparse.Namespace) -> dict:
         "selected_epoch": best_epoch,
         "selection_metric": "validation_nll_only",
         "best": final_metrics,
+        "side_calibration": calibration_report(model),
         "train_rows_after_d4": len(train_arrays["boards"]),
         "validation_rows_after_no_d4": len(validation["boards"]),
         "weights_sha256": sha256(weights_path),
     })
     print(json.dumps({"selected_epoch": best_epoch, "best_validation": final_metrics,
+                      "side_calibration": calibration_report(model),
                       "weights": str(weights_path)}, indent=2), flush=True)
     return config
 
@@ -308,7 +335,7 @@ def train(args: argparse.Namespace) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", default="volume1200")
-    parser.add_argument("--run-id", default="c750-k6000-l0p5-tanh-seed20261126")
+    parser.add_argument("--run-id", default="c750-k6000-l0p5-tanh-sidecalib-seed20261126")
     parser.add_argument("--output")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--seed", type=int, default=20261126)

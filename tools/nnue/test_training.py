@@ -65,17 +65,39 @@ class TrainingContractTests(unittest.TestCase):
         self.assertEqual(int(np.sum(weights == weights[0, 0])), 1)
         self.assertEqual(model.heads.bias.detach().numpy().tolist(), [0.0, 0.0])
 
+    def test_side_calibration_is_side_selected_logit_bias(self):
+        model = ResidualNNUE(750, 6000)
+        with torch.no_grad():
+            model.hidden.weight.zero_()
+            model.hidden.bias.zero_()
+            model.heads.weight.zero_()
+            model.heads.bias.zero_()
+            model.side_calib.copy_(torch.tensor([0.5, -0.25]))
+        features = torch.zeros(2, 243)
+        sides = torch.tensor([0, 1], dtype=torch.int64)
+        base = torch.tensor([0.0, 12000.0])
+        prediction, residual = model(features, sides, base)
+        expected = torch.sigmoid(torch.tensor([0.5, 1.75]))
+        torch.testing.assert_close(prediction, expected)
+        torch.testing.assert_close(residual, torch.zeros(2))
+        prediction.sum().backward()
+        self.assertIsNotNone(model.side_calib.grad)
+        self.assertTrue(bool(torch.all(model.side_calib.grad != 0)))
+
     def test_exported_numpy_matches_torch_and_selects_heads(self):
         torch.manual_seed(7)
         model = ResidualNNUE(750, 6000)
         with torch.no_grad():
             model.heads.weight.normal_(0, 0.1)
             model.heads.bias.copy_(torch.tensor([2.0, -3.0]))
+            model.side_calib.copy_(torch.tensor([0.4, -0.2]))
         boards = (np.arange(162).reshape(2, 81) % 5).astype(np.int8)
         sides = np.array([1, 0], dtype=np.int8)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "weights.npz"
             export_weights(model, path)
+            with np.load(path, allow_pickle=False) as saved:
+                self.assertNotIn("side_calib", saved.files)
             weights = load_weights(path)
             np.testing.assert_allclose(
                 weights["head_weight"], model.heads.weight.detach().numpy() * 750,
