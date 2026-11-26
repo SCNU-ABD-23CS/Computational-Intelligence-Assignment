@@ -31,6 +31,16 @@ class BrokenPlayer(HoldingPlayer):
 
 
 class ArenaTests(unittest.TestCase):
+    def test_book_hit_records_zero_search_work_without_a_fallback(self):
+        player = HoldingPlayer([[0, 5], [1, 5]])
+        player.last_book_hit = True
+        attempts = []
+        observer = runner.ObservedPlayer("Team19-v4", player, attempts)
+        observer.play_attacker(Tablut.Tablut().board)
+        self.assertTrue(attempts[0]["bookHit"])
+        self.assertFalse(attempts[0]["fallback"])
+        self.assertEqual(attempts[0]["nodes"], 0)
+
     def test_historical_modules_keep_distinct_policies_and_share_rule_hashes(self):
         versions = [runner.TEAMS[team] for team in runner.LEAGUE[:3]]
         board = Tablut.Tablut().board

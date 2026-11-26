@@ -188,7 +188,9 @@ class ObservedPlayer:
             latest_error = getattr(self.player, "last_error", None)
             if latest_error is not None and latest_error is not previous_error:
                 record["error"] = str(latest_error)
-            if telemetry is not None:
+            if getattr(self.player, "last_book_hit", False) and "move" in record and "error" not in record:
+                record.update(bookHit=True, depth=0, nodes=0, score=None, fallback=False)
+            elif telemetry is not None:
                 record.update(asdict(telemetry))
             elif TEAMS[self.team].search is not None:
                 depth, result = self.depths[-1] if self.depths else (0, None)

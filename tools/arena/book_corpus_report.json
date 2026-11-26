@@ -1,0 +1,1503 @@
+{
+  "root": "results",
+  "jsonlFiles": 42,
+  "jsonFiles": 162,
+  "jsonlRecords": 3406,
+  "canonicalRecords": 3045,
+  "duplicateReplays": 361,
+  "archivedRecords": 336,
+  "replayFiles": 135,
+  "parseErrors": [],
+  "schemas": {
+    "1": 3406
+  },
+  "replaySchemas": {
+    "team19.tablut.replay": 135
+  },
+  "replayVersions": {
+    "1": 135
+  },
+  "budgets": {
+    "10.0": 1876,
+    "60.0": 1330,
+    "60": 184,
+    "10": 12,
+    "0.5": 4
+  },
+  "stages": {
+    "arena-77c4be01f2fd-10s": 360,
+    "arena-77c4be01f2fd-60s": 360,
+    "arena-7f00202f8aed-10s": 24,
+    "arena-7f00202f8aed-60s": 24,
+    "arena-9451a7e4dcf4-10s": 144,
+    "arena-9451a7e4dcf4-60s": 144,
+    "arena-b5d227d32353-10s": 48,
+    "arena-b5d227d32353-60s": 48,
+    "arena-bfab8066e3d5-10s": 24,
+    "arena-bfab8066e3d5-60s": 24,
+    "arena-f057734fb86f-10s": 288,
+    "arena-f057734fb86f-60s": 288,
+    "arena-standard-b2c5e0df9948-10s": 182,
+    "arena-standard-b2c5e0df9948-60s": 182,
+    "duel": 64,
+    "evolution-fast": 72,
+    "evolution-official": 12,
+    "fast": 432,
+    "final": 72,
+    "official": 72,
+    "random": 10,
+    "smoke": 20,
+    "v2-validation": 144,
+    "targeted": 4,
+    "top6_10s": 180,
+    "top6_60s": 180,
+    "arena-288812a09c31-0p5s": 2,
+    "v4-smoke-78d93d3f1db5-0p5s": 2
+  },
+  "roles": {
+    "Team19-v2:A": 383,
+    "Grandmaster-Numba:D": 533,
+    "Grandmaster-Numba:A": 504,
+    "Team19-v2:D": 361,
+    "QSearch-PVS:D": 241,
+    "QSearch-PVS:A": 232,
+    "Team19-91ffcc8:D": 192,
+    "Team19-91ffcc8:A": 188,
+    "BFS-Strategist:D": 236,
+    "BFS-Strategist:A": 234,
+    "Guided-MCTS:D": 231,
+    "Guided-MCTS:A": 240,
+    "Team19-v3:A": 298,
+    "Team19-v3:D": 285,
+    "Team19-v4:A": 142,
+    "Team19-v4:D": 139,
+    "Grandmaster-Plus:D": 248,
+    "Grandmaster-Plus:A": 245,
+    "Team19-PreFix:A": 82,
+    "Team19-Old:D": 80,
+    "Team19-Old:A": 76,
+    "Team19-PreFix:D": 79,
+    "GreedyBot:D": 84,
+    "GreedyBot:A": 82,
+    "NaiveAB-D2:D": 85,
+    "NaiveAB-D2:A": 86,
+    "RandomBot:D": 31,
+    "RandomBot:A": 31,
+    "Team19-New:A": 126,
+    "Team19-New:D": 124,
+    "Team19-v2-Hot:A": 48,
+    "Team19-v2-Candidate:D": 48,
+    "Team19-v2-Candidate:A": 48,
+    "Team19-v2-Hot:D": 48
+  },
+  "strongEngines": {
+    "Team19-v4": {
+      "loss": 85,
+      "win": 185,
+      "draw": 11
+    },
+    "Team19-v3": {
+      "win": 339,
+      "loss": 221,
+      "draw": 23
+    },
+    "Grandmaster-Plus": {
+      "win": 233,
+      "loss": 230,
+      "draw": 30
+    },
+    "Grandmaster-Numba": {
+      "loss": 423,
+      "draw": 72,
+      "win": 542
+    },
+    "QSearch-PVS": {
+      "win": 210,
+      "loss": 229,
+      "draw": 34
+    }
+  },
+  "openingCounts": {
+    "o01": 277,
+    "o02": 263,
+    "o03": 267,
+    "o04": 268,
+    "o05": 260,
+    "o06": 263,
+    "o07": 154,
+    "o08": 127,
+    "o09": 153,
+    "o10": 149,
+    "o11": 153,
+    "o12": 150,
+    "standard": 417,
+    "v01": 12,
+    "v02": 12,
+    "v03": 12,
+    "v04": 12,
+    "v05": 12,
+    "v06": 12,
+    "v07": 12,
+    "v08": 12,
+    "v09": 12,
+    "v10": 12,
+    "v11": 12,
+    "v12": 12
+  },
+  "symmetryClasses": {
+    "o01": "01584e488121",
+    "o02": "338132b5a562",
+    "o03": "56481676b221",
+    "o04": "1ae80080d15f",
+    "o05": "276c413dfcae",
+    "o06": "71ddaa91ff30",
+    "o07": "49a3c2a0daf2",
+    "o08": "65160819b45e",
+    "o09": "4d50b4fce834",
+    "o10": "d5107ed5a4b3",
+    "o11": "0ebbeaf0ad23",
+    "o12": "8c0746fa9559",
+    "standard": "3190603cf661",
+    "v01": "59a5becbf0a0",
+    "v02": "f1150d828b75",
+    "v03": "537392f77b92",
+    "v04": "47ef22924ab1",
+    "v05": "846ebee908d7",
+    "v06": "ef3293f3e230",
+    "v07": "af5b7d0927af",
+    "v08": "c9d785f4af75",
+    "v09": "714765249687",
+    "v10": "f241ae5ae444",
+    "v11": "d7be4a31c00f",
+    "v12": "aedd74619e48"
+  },
+  "symmetryClassCount": 25,
+  "branchSignals": {
+    "v2": 888,
+    "91ffcc8": 380,
+    "v3": 583,
+    "v4": 281
+  },
+  "frontFourSequences": [
+    {
+      "id": "10-o01-Team19-v2-A-Grandmaster-Numba",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Team19-v2",
+        "D": "Grandmaster-Numba"
+      },
+      "winner": "A",
+      "reason": "king captured",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Grandmaster-Numba-A-Team19-v2",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Grandmaster-Numba",
+        "D": "Team19-v2"
+      },
+      "winner": null,
+      "reason": "repeated position",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Team19-v2-A-QSearch-PVS",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Team19-v2",
+        "D": "QSearch-PVS"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-QSearch-PVS-A-Team19-v2",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "QSearch-PVS",
+        "D": "Team19-v2"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Grandmaster-Numba-A-QSearch-PVS",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Grandmaster-Numba",
+        "D": "QSearch-PVS"
+      },
+      "winner": "A",
+      "reason": "king captured",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-QSearch-PVS-A-Grandmaster-Numba",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "QSearch-PVS",
+        "D": "Grandmaster-Numba"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Grandmaster-Numba-A-Team19-91ffcc8",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Grandmaster-Numba",
+        "D": "Team19-91ffcc8"
+      },
+      "winner": "A",
+      "reason": "king captured",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Team19-91ffcc8-A-Grandmaster-Numba",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Team19-91ffcc8",
+        "D": "Grandmaster-Numba"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Grandmaster-Numba-A-BFS-Strategist",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Grandmaster-Numba",
+        "D": "BFS-Strategist"
+      },
+      "winner": "A",
+      "reason": "king captured",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-BFS-Strategist-A-Grandmaster-Numba",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "BFS-Strategist",
+        "D": "Grandmaster-Numba"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Grandmaster-Numba-A-Guided-MCTS",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Grandmaster-Numba",
+        "D": "Guided-MCTS"
+      },
+      "winner": null,
+      "reason": "repeated position",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Guided-MCTS-A-Grandmaster-Numba",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Guided-MCTS",
+        "D": "Grandmaster-Numba"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-QSearch-PVS-A-Team19-91ffcc8",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "QSearch-PVS",
+        "D": "Team19-91ffcc8"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Team19-91ffcc8-A-QSearch-PVS",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Team19-91ffcc8",
+        "D": "QSearch-PVS"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-QSearch-PVS-A-BFS-Strategist",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "QSearch-PVS",
+        "D": "BFS-Strategist"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-BFS-Strategist-A-QSearch-PVS",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "BFS-Strategist",
+        "D": "QSearch-PVS"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-QSearch-PVS-A-Guided-MCTS",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "QSearch-PVS",
+        "D": "Guided-MCTS"
+      },
+      "winner": "A",
+      "reason": "king captured",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "10-o01-Guided-MCTS-A-QSearch-PVS",
+      "path": "arena-77c4be01f2fd-10s.jsonl",
+      "stage": "arena-77c4be01f2fd-10s",
+      "budget": 10.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Guided-MCTS",
+        "D": "QSearch-PVS"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "60-o01-Team19-v2-A-Grandmaster-Numba",
+      "path": "arena-77c4be01f2fd-60s.jsonl",
+      "stage": "arena-77c4be01f2fd-60s",
+      "budget": 60.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Team19-v2",
+        "D": "Grandmaster-Numba"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "60-o01-Grandmaster-Numba-A-Team19-v2",
+      "path": "arena-77c4be01f2fd-60s.jsonl",
+      "stage": "arena-77c4be01f2fd-60s",
+      "budget": 60.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Grandmaster-Numba",
+        "D": "Team19-v2"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "60-o01-Team19-v2-A-QSearch-PVS",
+      "path": "arena-77c4be01f2fd-60s.jsonl",
+      "stage": "arena-77c4be01f2fd-60s",
+      "budget": 60.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Team19-v2",
+        "D": "QSearch-PVS"
+      },
+      "winner": "A",
+      "reason": "king captured",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "60-o01-QSearch-PVS-A-Team19-v2",
+      "path": "arena-77c4be01f2fd-60s.jsonl",
+      "stage": "arena-77c4be01f2fd-60s",
+      "budget": 60.0,
+      "opening": "o01",
+      "teams": {
+        "A": "QSearch-PVS",
+        "D": "Team19-v2"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "60-o01-Grandmaster-Numba-A-QSearch-PVS",
+      "path": "arena-77c4be01f2fd-60s.jsonl",
+      "stage": "arena-77c4be01f2fd-60s",
+      "budget": 60.0,
+      "opening": "o01",
+      "teams": {
+        "A": "Grandmaster-Numba",
+        "D": "QSearch-PVS"
+      },
+      "winner": "A",
+      "reason": "king captured",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "60-o01-QSearch-PVS-A-Grandmaster-Numba",
+      "path": "arena-77c4be01f2fd-60s.jsonl",
+      "stage": "arena-77c4be01f2fd-60s",
+      "budget": 60.0,
+      "opening": "o01",
+      "teams": {
+        "A": "QSearch-PVS",
+        "D": "Grandmaster-Numba"
+      },
+      "winner": "D",
+      "reason": "king escaped to the edge",
+      "moves": [
+        [
+          [
+            8,
+            5
+          ],
+          [
+            8,
+            6
+          ]
+        ],
+        [
+          [
+            2,
+            4
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        [
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            7
+          ]
+        ],
+        [
+          [
+            2,
+            6
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      ]
+    }
+  ]
+}

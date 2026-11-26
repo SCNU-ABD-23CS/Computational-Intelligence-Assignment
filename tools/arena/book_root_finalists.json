@@ -1,0 +1,1962 @@
+{
+  "format": 3,
+  "mode": "fixed-root-finalists",
+  "selection": {
+    "screen": "book_screen_results.json",
+    "criterion": "top three D4 families by worstV4Score",
+    "opponents": [
+      "Team19-v3",
+      "QSearch-PVS"
+    ]
+  },
+  "trialBudget": 10.0,
+  "ranTrials": true,
+  "rootFinalists": [
+    {
+      "case": "root-finalist-0313",
+      "side": "A",
+      "prefix": [],
+      "candidate": [
+        0,
+        3,
+        1,
+        3
+      ],
+      "line": [
+        [
+          0,
+          3,
+          1,
+          3
+        ]
+      ],
+      "source": "book_screen_top3_worst_v4_score",
+      "opponents": [
+        "Team19-v3",
+        "QSearch-PVS"
+      ],
+      "historic": [
+        {
+          "source": "member3_gate_60.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-v4",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "member3_gate_60.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-v4",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "member3_gate_60.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Team19-v4",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "member3_gate_60.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Team19-v4",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "member3_gate_60.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-v4",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "member3_gate_60.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-v4",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Team19-PreFix",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-Team19-PreFix",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-Team19-PreFix",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Team19-Old",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-Team19-Old",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-Team19-Old",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-GreedyBot",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-GreedyBot",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-GreedyBot",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-NaiveAB-D2",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-NaiveAB-D2",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-NaiveAB-D2",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Guided-MCTS",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-Guided-MCTS",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Guided-MCTS"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-Guided-MCTS",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-BFS-Strategist",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "BFS-Strategist"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-BFS-Strategist",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "BFS-Strategist"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-BFS-Strategist",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "BFS-Strategist"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Grandmaster-Numba",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-QSearch-PVS",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "QSearch-PVS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-RandomBot",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Team19-91ffcc8",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Team19-v2",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Team19-v3",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v3"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Team19-v4",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-QSearch-PVS-A-Grandmaster-Plus",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Grandmaster-Plus"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-QSearch-PVS",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "QSearch-PVS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-RandomBot",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-Team19-91ffcc8",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-Team19-v2",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-Team19-v3",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v3"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-Team19-v4",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v4"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Numba-A-Grandmaster-Plus",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Grandmaster-Plus"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-Grandmaster-Numba",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-RandomBot",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-Team19-91ffcc8",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-Team19-v2",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-Team19-v3",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-v3"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Grandmaster-Plus-A-Team19-v4",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-PreFix",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-PreFix"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-PreFix",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-PreFix",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-Team19-PreFix",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-Team19-PreFix",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Team19-PreFix",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-Old",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-Old",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-Old",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-Team19-Old",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-Team19-Old",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Team19-Old",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-GreedyBot",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-GreedyBot",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-GreedyBot",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-RandomBot-A-GreedyBot",
+          "teams": {
+            "A": "RandomBot",
+            "D": "GreedyBot"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-GreedyBot",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-GreedyBot",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-GreedyBot",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-NaiveAB-D2",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-NaiveAB-D2",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-NaiveAB-D2",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-NaiveAB-D2",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-NaiveAB-D2",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-NaiveAB-D2",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Guided-MCTS",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Guided-MCTS",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Guided-MCTS"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Guided-MCTS",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-Guided-MCTS",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "Guided-MCTS"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-Guided-MCTS",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Guided-MCTS",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-QSearch-PVS",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "QSearch-PVS"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-BFS-Strategist",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "BFS-Strategist"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Grandmaster-Numba",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-BFS-Strategist",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "BFS-Strategist"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-RandomBot",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-91ffcc8",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-BFS-Strategist",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "BFS-Strategist"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-v2",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-BFS-Strategist",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "BFS-Strategist"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-v3",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-v3"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-v4",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Grandmaster-Plus",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Grandmaster-Plus"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-BFS-Strategist",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "BFS-Strategist"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Grandmaster-Numba",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-QSearch-PVS",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "QSearch-PVS"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-RandomBot",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-91ffcc8",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-QSearch-PVS",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "QSearch-PVS"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-v2",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-QSearch-PVS",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "QSearch-PVS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-v3",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v3"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-v4",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Grandmaster-Plus",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Grandmaster-Plus"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-QSearch-PVS",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "QSearch-PVS"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-RandomBot",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-91ffcc8",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-Grandmaster-Numba",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-v2",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-Grandmaster-Numba",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-v3",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v3"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-v4",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Grandmaster-Plus",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Grandmaster-Plus"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Grandmaster-Numba",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-RandomBot",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-RandomBot",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-RandomBot",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-Team19-v2",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-Team19-91ffcc8",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-Team19-v3",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "Team19-v3"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-Team19-v4",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-91ffcc8-A-Grandmaster-Plus",
+          "teams": {
+            "A": "Team19-91ffcc8",
+            "D": "Grandmaster-Plus"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Team19-91ffcc8",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-Team19-v3",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Team19-v3"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-Team19-v4",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Team19-v4"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Team19-v2-A-Grandmaster-Plus",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Grandmaster-Plus"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Team19-v2",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Team19-v3",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-v3"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+          "id": "60-standard-Grandmaster-Plus-A-Team19-v4",
+          "teams": {
+            "A": "Grandmaster-Plus",
+            "D": "Team19-v4"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-Team19-v2-A-GreedyBot",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-Team19-v2-A-NaiveAB-D2",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-Team19-v2-A-Guided-MCTS",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-Team19-v2-A-BFS-Strategist",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "BFS-Strategist"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-v2",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-Team19-v2-A-QSearch-PVS",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "QSearch-PVS"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-v2",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-Team19-v2-A-Grandmaster-Numba",
+          "teams": {
+            "A": "Team19-v2",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "evolution-official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-v2",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Team19-New-A-Team19-PreFix",
+          "teams": {
+            "A": "Team19-New",
+            "D": "Team19-PreFix"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Team19-New-A-Team19-Old",
+          "teams": {
+            "A": "Team19-New",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Team19-New-A-GreedyBot",
+          "teams": {
+            "A": "Team19-New",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Team19-New-A-NaiveAB-D2",
+          "teams": {
+            "A": "Team19-New",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Team19-New-A-Guided-MCTS",
+          "teams": {
+            "A": "Team19-New",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Team19-New-A-BFS-Strategist",
+          "teams": {
+            "A": "Team19-New",
+            "D": "BFS-Strategist"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-New",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-New"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Team19-New-A-QSearch-PVS",
+          "teams": {
+            "A": "Team19-New",
+            "D": "QSearch-PVS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-New",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-New"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Team19-New-A-Grandmaster-Numba",
+          "teams": {
+            "A": "Team19-New",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-New",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-New"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-PreFix",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-PreFix"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-PreFix",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-PreFix",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Team19-Old",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Team19-Old"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Team19-Old",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Team19-Old",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-GreedyBot",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-GreedyBot",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-GreedyBot",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-NaiveAB-D2",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "NaiveAB-D2"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-NaiveAB-D2",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-NaiveAB-D2",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Guided-MCTS",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Guided-MCTS"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Guided-MCTS",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Guided-MCTS"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-Guided-MCTS",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-QSearch-PVS",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "QSearch-PVS"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-BFS-Strategist",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "BFS-Strategist"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-BFS-Strategist-A-Grandmaster-Numba",
+          "teams": {
+            "A": "BFS-Strategist",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-BFS-Strategist",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "BFS-Strategist"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-QSearch-PVS-A-Grandmaster-Numba",
+          "teams": {
+            "A": "QSearch-PVS",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "official.jsonl",
+          "id": "60-standard-Grandmaster-Numba-A-QSearch-PVS",
+          "teams": {
+            "A": "Grandmaster-Numba",
+            "D": "QSearch-PVS"
+          },
+          "winner": null,
+          "reason": "repeated position"
+        }
+      ],
+      "trials": [
+        {
+          "opponent": "Team19-v3",
+          "scoreForV4": 0,
+          "winner": "D",
+          "reason": "king escaped to the edge",
+          "remaining": {
+            "A": 6.901450872421265,
+            "D": 6.488214731216431
+          },
+          "v4Fallbacks": 0,
+          "pliesAfterCandidate": 37
+        },
+        {
+          "opponent": "QSearch-PVS",
+          "scoreForV4": 2,
+          "winner": "A",
+          "reason": "king captured",
+          "remaining": {
+            "A": 0.4629244804382324,
+            "D": 0.10811209678649902
+          },
+          "v4Fallbacks": 0,
+          "pliesAfterCandidate": 256
+        }
+      ]
+    },
+    {
+      "case": "root-finalist-1412",
+      "side": "A",
+      "prefix": [],
+      "candidate": [
+        1,
+        4,
+        1,
+        2
+      ],
+      "line": [
+        [
+          1,
+          4,
+          1,
+          2
+        ]
+      ],
+      "source": "book_screen_top3_worst_v4_score",
+      "opponents": [
+        "Team19-v3",
+        "QSearch-PVS"
+      ],
+      "historic": [
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-RandomBot-A-Team19-v2",
+          "teams": {
+            "A": "RandomBot",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        }
+      ],
+      "trials": [
+        {
+          "opponent": "Team19-v3",
+          "scoreForV4": 2,
+          "winner": "A",
+          "reason": "king captured",
+          "remaining": {
+            "A": 7.961768388748169,
+            "D": 7.4821131229400635
+          },
+          "v4Fallbacks": 0,
+          "pliesAfterCandidate": 26
+        },
+        {
+          "opponent": "QSearch-PVS",
+          "scoreForV4": 2,
+          "winner": "A",
+          "reason": "king captured",
+          "remaining": {
+            "A": 5.6905128955841064,
+            "D": 4.930750370025635
+          },
+          "v4Fallbacks": 0,
+          "pliesAfterCandidate": 50
+        }
+      ]
+    },
+    {
+      "case": "root-finalist-0323",
+      "side": "A",
+      "prefix": [],
+      "candidate": [
+        0,
+        3,
+        2,
+        3
+      ],
+      "line": [
+        [
+          0,
+          3,
+          2,
+          3
+        ]
+      ],
+      "source": "book_screen_top3_worst_v4_score",
+      "opponents": [
+        "Team19-v3",
+        "QSearch-PVS"
+      ],
+      "historic": [
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-Team19-PreFix",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "Team19-PreFix"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-Team19-Old",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "Team19-Old"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-GreedyBot",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "GreedyBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-NaiveAB-D2",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "NaiveAB-D2"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-Guided-MCTS",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "Guided-MCTS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-BFS-Strategist",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "BFS-Strategist"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-QSearch-PVS",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "QSearch-PVS"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-Grandmaster-Numba",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "Grandmaster-Numba"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-RandomBot",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "RandomBot"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-Team19-91ffcc8",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "Team19-91ffcc8"
+          },
+          "winner": "A",
+          "reason": "king captured"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-Team19-v2",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "Team19-v2"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-Team19-v3",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "Team19-v3"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        },
+        {
+          "source": "arena-standard-b2c5e0df9948-10s.jsonl",
+          "id": "10-standard-Team19-v4-A-Grandmaster-Plus",
+          "teams": {
+            "A": "Team19-v4",
+            "D": "Grandmaster-Plus"
+          },
+          "winner": "D",
+          "reason": "king escaped to the edge"
+        }
+      ],
+      "trials": [
+        {
+          "opponent": "Team19-v3",
+          "scoreForV4": 2,
+          "winner": "A",
+          "reason": "king captured",
+          "remaining": {
+            "A": 7.130889654159546,
+            "D": 6.498382806777954
+          },
+          "v4Fallbacks": 0,
+          "pliesAfterCandidate": 34
+        },
+        {
+          "opponent": "QSearch-PVS",
+          "scoreForV4": 2,
+          "winner": "A",
+          "reason": "king captured",
+          "remaining": {
+            "A": 8.165962934494019,
+            "D": 7.384213447570801
+          },
+          "v4Fallbacks": 0,
+          "pliesAfterCandidate": 24
+        }
+      ]
+    }
+  ]
+}

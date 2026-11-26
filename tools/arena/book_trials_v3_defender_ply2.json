@@ -1,0 +1,237 @@
+{
+  "format": 1,
+  "searchSeconds": 3.0,
+  "trialBudget": 10.0,
+  "ranTrials": true,
+  "cases": [
+    {
+      "case": "v3-defender-ply2",
+      "side": "D",
+      "prefix": [
+        [
+          0,
+          5,
+          1,
+          5
+        ]
+      ],
+      "v4NativeChoice": [
+        4,
+        6,
+        3,
+        6
+      ],
+      "legalCandidates": 55,
+      "reports": [
+        {
+          "candidate": [
+            4,
+            6,
+            3,
+            6
+          ],
+          "line": [
+            [
+              0,
+              5,
+              1,
+              5
+            ],
+            [
+              4,
+              6,
+              3,
+              6
+            ]
+          ],
+          "source": "v4-native",
+          "historic": [
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v3-A-Team19-v4",
+              "teams": {
+                "A": "Team19-v3",
+                "D": "Team19-v4"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            }
+          ],
+          "trials": [
+            {
+              "opponent": "Team19-v3",
+              "scoreForV4": 2,
+              "winner": "D",
+              "reason": "king escaped to the edge",
+              "remaining": {
+                "A": 7.8430304527282715,
+                "D": 8.065141201019287
+              },
+              "v4Fallbacks": 0,
+              "pliesAfterCandidate": 26
+            }
+          ]
+        },
+        {
+          "candidate": [
+            2,
+            4,
+            2,
+            3
+          ],
+          "line": [
+            [
+              0,
+              5,
+              1,
+              5
+            ],
+            [
+              2,
+              4,
+              2,
+              3
+            ]
+          ],
+          "source": "historic",
+          "historic": [
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v3-A-Team19-PreFix",
+              "teams": {
+                "A": "Team19-v3",
+                "D": "Team19-PreFix"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-Team19-PreFix",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "Team19-PreFix"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v3-A-Team19-Old",
+              "teams": {
+                "A": "Team19-v3",
+                "D": "Team19-Old"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-Team19-Old",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "Team19-Old"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v3-A-GreedyBot",
+              "teams": {
+                "A": "Team19-v3",
+                "D": "GreedyBot"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-GreedyBot",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "GreedyBot"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v3-A-NaiveAB-D2",
+              "teams": {
+                "A": "Team19-v3",
+                "D": "NaiveAB-D2"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-NaiveAB-D2",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "NaiveAB-D2"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v3-A-QSearch-PVS",
+              "teams": {
+                "A": "Team19-v3",
+                "D": "QSearch-PVS"
+              },
+              "winner": "D",
+              "reason": "king escaped to the edge"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-QSearch-PVS",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "QSearch-PVS"
+              },
+              "winner": "D",
+              "reason": "king escaped to the edge"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v3-A-Team19-91ffcc8",
+              "teams": {
+                "A": "Team19-v3",
+                "D": "Team19-91ffcc8"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            },
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-Team19-91ffcc8",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "Team19-91ffcc8"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            }
+          ],
+          "trials": [
+            {
+              "opponent": "Team19-v3",
+              "scoreForV4": 2,
+              "winner": "D",
+              "reason": "king escaped to the edge",
+              "remaining": {
+                "A": 6.323646545410156,
+                "D": 6.270061492919922
+              },
+              "v4Fallbacks": 0,
+              "pliesAfterCandidate": 40
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

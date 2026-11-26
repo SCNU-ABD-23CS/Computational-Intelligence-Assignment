@@ -1,0 +1,270 @@
+{
+  "format": 2,
+  "searchSeconds": 3.0,
+  "deepSeconds": 6.0,
+  "trialBudget": 10.0,
+  "ranTrials": false,
+  "cases": [
+    {
+      "case": "qs-attacker-ply5",
+      "side": "A",
+      "prefix": [
+        [
+          0,
+          5,
+          1,
+          5
+        ],
+        [
+          2,
+          4,
+          2,
+          3
+        ],
+        [
+          0,
+          3,
+          1,
+          3
+        ],
+        [
+          2,
+          3,
+          2,
+          4
+        ]
+      ],
+      "v4NativeChoice": [
+        0,
+        4,
+        0,
+        7
+      ],
+      "legalCandidates": 80,
+      "policyChoices": {
+        "Team19-v3": [
+          3,
+          0,
+          3,
+          2
+        ],
+        "Grandmaster-Plus": [
+          1,
+          3,
+          0,
+          3
+        ]
+      },
+      "reports": [
+        {
+          "candidate": [
+            0,
+            4,
+            0,
+            7
+          ],
+          "line": [
+            [
+              0,
+              5,
+              1,
+              5
+            ],
+            [
+              2,
+              4,
+              2,
+              3
+            ],
+            [
+              0,
+              3,
+              1,
+              3
+            ],
+            [
+              2,
+              3,
+              2,
+              4
+            ],
+            [
+              0,
+              4,
+              0,
+              7
+            ]
+          ],
+          "source": "v4-native",
+          "historic": [
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-QSearch-PVS",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "QSearch-PVS"
+              },
+              "winner": "D",
+              "reason": "king escaped to the edge"
+            }
+          ],
+          "forcedChild": {
+            "reply": [
+              4,
+              2,
+              5,
+              2
+            ],
+            "replyDepth": 6,
+            "scoreAfterReplyAttackPerspective": -1062.0,
+            "scoreAfterReplyBookPerspective": -1062.0,
+            "recovery": [
+              8,
+              3,
+              6,
+              3
+            ],
+            "recoveryDepth": 5,
+            "scoreAfterRecoveryAttackPerspective": -1062.0,
+            "scoreAfterRecoveryBookPerspective": -1062.0
+          }
+        },
+        {
+          "candidate": [
+            3,
+            0,
+            3,
+            1
+          ],
+          "line": [
+            [
+              0,
+              5,
+              1,
+              5
+            ],
+            [
+              2,
+              4,
+              2,
+              3
+            ],
+            [
+              0,
+              3,
+              1,
+              3
+            ],
+            [
+              2,
+              3,
+              2,
+              4
+            ],
+            [
+              3,
+              0,
+              3,
+              1
+            ]
+          ],
+          "source": "historic",
+          "historic": [
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v3-A-QSearch-PVS",
+              "teams": {
+                "A": "Team19-v3",
+                "D": "QSearch-PVS"
+              },
+              "winner": "D",
+              "reason": "king escaped to the edge"
+            }
+          ],
+          "forcedChild": {
+            "reply": [
+              4,
+              6,
+              5,
+              6
+            ],
+            "replyDepth": 6,
+            "scoreAfterReplyAttackPerspective": -1062.0,
+            "scoreAfterReplyBookPerspective": -1062.0,
+            "recovery": [
+              3,
+              8,
+              3,
+              6
+            ],
+            "recoveryDepth": 6,
+            "scoreAfterRecoveryAttackPerspective": -2039.0,
+            "scoreAfterRecoveryBookPerspective": -2039.0
+          }
+        },
+        {
+          "candidate": [
+            3,
+            0,
+            3,
+            2
+          ],
+          "line": [
+            [
+              0,
+              5,
+              1,
+              5
+            ],
+            [
+              2,
+              4,
+              2,
+              3
+            ],
+            [
+              0,
+              3,
+              1,
+              3
+            ],
+            [
+              2,
+              3,
+              2,
+              4
+            ],
+            [
+              3,
+              0,
+              3,
+              2
+            ]
+          ],
+          "source": "policy:Team19-v3",
+          "historic": [],
+          "forcedChild": {
+            "reply": [
+              2,
+              4,
+              2,
+              2
+            ],
+            "replyDepth": 7,
+            "scoreAfterReplyAttackPerspective": -3001.0,
+            "scoreAfterReplyBookPerspective": -3001.0,
+            "recovery": [
+              4,
+              0,
+              3,
+              0
+            ],
+            "recoveryDepth": 6,
+            "scoreAfterRecoveryAttackPerspective": -3001.0,
+            "scoreAfterRecoveryBookPerspective": -3001.0
+          }
+        }
+      ]
+    }
+  ]
+}

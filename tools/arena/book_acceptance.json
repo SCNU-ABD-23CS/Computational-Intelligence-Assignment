@@ -1,0 +1,189 @@
+{
+  "budget": 60,
+  "games": 16,
+  "points": {
+    "bare": 16,
+    "book": 16
+  },
+  "candidateHealthy": true,
+  "enableByDefault": false,
+  "medianAttackerFirstSecondsSaved": 2.9848326444625854,
+  "matches": [
+    {
+      "opponent": "QSearch-PVS",
+      "side": "A",
+      "bare": {
+        "points": 2,
+        "reason": "king captured",
+        "hits": 0,
+        "firstSeconds": 2.985107898712158,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      },
+      "book": {
+        "points": 2,
+        "reason": "timeout",
+        "hits": 2,
+        "firstSeconds": 0.0003123283386230469,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      }
+    },
+    {
+      "opponent": "QSearch-PVS",
+      "side": "D",
+      "book": {
+        "points": 2,
+        "reason": "king escaped to the edge",
+        "hits": 1,
+        "firstSeconds": 0.0002262592315673828,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      },
+      "bare": {
+        "points": 2,
+        "reason": "king escaped to the edge",
+        "hits": 0,
+        "firstSeconds": 2.985123872756958,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      }
+    },
+    {
+      "opponent": "Team19-v3",
+      "side": "A",
+      "bare": {
+        "points": 2,
+        "reason": "king captured",
+        "hits": 0,
+        "firstSeconds": 2.984994888305664,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      },
+      "book": {
+        "points": 2,
+        "reason": "king captured",
+        "hits": 1,
+        "firstSeconds": 0.00013709068298339844,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      }
+    },
+    {
+      "opponent": "Team19-v3",
+      "side": "D",
+      "book": {
+        "points": 2,
+        "reason": "king escaped to the edge",
+        "hits": 1,
+        "firstSeconds": 0.00013875961303710938,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      },
+      "bare": {
+        "points": 2,
+        "reason": "king escaped to the edge",
+        "hits": 0,
+        "firstSeconds": 2.9850499629974365,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      }
+    },
+    {
+      "opponent": "Grandmaster-Plus",
+      "side": "A",
+      "bare": {
+        "points": 2,
+        "reason": "king captured",
+        "hits": 0,
+        "firstSeconds": 2.9849326610565186,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      },
+      "book": {
+        "points": 2,
+        "reason": "king captured",
+        "hits": 2,
+        "firstSeconds": 0.0001251697540283203,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      }
+    },
+    {
+      "opponent": "Grandmaster-Plus",
+      "side": "D",
+      "book": {
+        "points": 2,
+        "reason": "king escaped to the edge",
+        "hits": 2,
+        "firstSeconds": 0.0001671314239501953,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      },
+      "bare": {
+        "points": 2,
+        "reason": "king escaped to the edge",
+        "hits": 0,
+        "firstSeconds": 2.984896183013916,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      }
+    },
+    {
+      "opponent": "Grandmaster-Numba",
+      "side": "A",
+      "bare": {
+        "points": 2,
+        "reason": "king captured",
+        "hits": 0,
+        "firstSeconds": 2.9852757453918457,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      },
+      "book": {
+        "points": 2,
+        "reason": "king captured",
+        "hits": 2,
+        "firstSeconds": 0.00012540817260742188,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      }
+    },
+    {
+      "opponent": "Grandmaster-Numba",
+      "side": "D",
+      "book": {
+        "points": 2,
+        "reason": "king escaped to the edge",
+        "hits": 2,
+        "firstSeconds": 0.00015592575073242188,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      },
+      "bare": {
+        "points": 2,
+        "reason": "king escaped to the edge",
+        "hits": 0,
+        "firstSeconds": 2.98508620262146,
+        "fallbacks": 0,
+        "errors": 0,
+        "refereeLoss": false
+      }
+    }
+  ]
+}

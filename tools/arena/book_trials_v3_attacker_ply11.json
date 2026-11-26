@@ -1,0 +1,289 @@
+{
+  "format": 1,
+  "searchSeconds": 3.0,
+  "trialBudget": 10.0,
+  "ranTrials": true,
+  "cases": [
+    {
+      "case": "v3-attacker-ply11",
+      "side": "A",
+      "prefix": [
+        [
+          0,
+          5,
+          1,
+          5
+        ],
+        [
+          4,
+          6,
+          5,
+          6
+        ],
+        [
+          5,
+          0,
+          5,
+          1
+        ],
+        [
+          4,
+          5,
+          7,
+          5
+        ],
+        [
+          3,
+          8,
+          3,
+          6
+        ],
+        [
+          4,
+          4,
+          4,
+          5
+        ],
+        [
+          4,
+          7,
+          6,
+          7
+        ],
+        [
+          5,
+          4,
+          5,
+          3
+        ],
+        [
+          4,
+          8,
+          4,
+          6
+        ],
+        [
+          5,
+          6,
+          6,
+          6
+        ]
+      ],
+      "v4NativeChoice": [
+        1,
+        5,
+        2,
+        5
+      ],
+      "legalCandidates": 81,
+      "reports": [
+        {
+          "candidate": [
+            1,
+            5,
+            2,
+            5
+          ],
+          "line": [
+            [
+              0,
+              5,
+              1,
+              5
+            ],
+            [
+              4,
+              6,
+              5,
+              6
+            ],
+            [
+              5,
+              0,
+              5,
+              1
+            ],
+            [
+              4,
+              5,
+              7,
+              5
+            ],
+            [
+              3,
+              8,
+              3,
+              6
+            ],
+            [
+              4,
+              4,
+              4,
+              5
+            ],
+            [
+              4,
+              7,
+              6,
+              7
+            ],
+            [
+              5,
+              4,
+              5,
+              3
+            ],
+            [
+              4,
+              8,
+              4,
+              6
+            ],
+            [
+              5,
+              6,
+              6,
+              6
+            ],
+            [
+              1,
+              5,
+              2,
+              5
+            ]
+          ],
+          "source": "v4-native",
+          "historic": [
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-Team19-v2",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "Team19-v2"
+              },
+              "winner": "A",
+              "reason": "king captured"
+            }
+          ],
+          "trials": [
+            {
+              "opponent": "Team19-v3",
+              "scoreForV4": 0,
+              "winner": "D",
+              "reason": "king escaped to the edge",
+              "remaining": {
+                "A": 3.6792314052581787,
+                "D": 3.425816774368286
+              },
+              "v4Fallbacks": 0,
+              "pliesAfterCandidate": 73
+            }
+          ]
+        },
+        {
+          "candidate": [
+            5,
+            8,
+            5,
+            6
+          ],
+          "line": [
+            [
+              0,
+              5,
+              1,
+              5
+            ],
+            [
+              4,
+              6,
+              5,
+              6
+            ],
+            [
+              5,
+              0,
+              5,
+              1
+            ],
+            [
+              4,
+              5,
+              7,
+              5
+            ],
+            [
+              3,
+              8,
+              3,
+              6
+            ],
+            [
+              4,
+              4,
+              4,
+              5
+            ],
+            [
+              4,
+              7,
+              6,
+              7
+            ],
+            [
+              5,
+              4,
+              5,
+              3
+            ],
+            [
+              4,
+              8,
+              4,
+              6
+            ],
+            [
+              5,
+              6,
+              6,
+              6
+            ],
+            [
+              5,
+              8,
+              5,
+              6
+            ]
+          ],
+          "source": "historic",
+          "historic": [
+            {
+              "source": "arena-standard-b2c5e0df9948-60s.jsonl",
+              "id": "60-standard-Team19-v4-A-Team19-v3",
+              "teams": {
+                "A": "Team19-v4",
+                "D": "Team19-v3"
+              },
+              "winner": "D",
+              "reason": "king escaped to the edge"
+            }
+          ],
+          "trials": [
+            {
+              "opponent": "Team19-v3",
+              "scoreForV4": 2,
+              "winner": "A",
+              "reason": "king captured",
+              "remaining": {
+                "A": 5.1207499504089355,
+                "D": 4.794787645339966
+              },
+              "v4Fallbacks": 0,
+              "pliesAfterCandidate": 54
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
