@@ -72,12 +72,21 @@ def build_matches(games: int, budget: float) -> list[Match]:
         opponent = OPPONENTS[index % len(OPPONENTS)]
         if opponent == "Team19-v4":
             attacker = defender = "Team19-v4"
-        elif index % 2 == 0:
+        elif (index // len(OPPONENTS)) % 2 == 0:
             attacker, defender = "Team19-v4", opponent
         else:
             attacker, defender = opponent, "Team19-v4"
         matches.append(Match(attacker, defender, budget, opening))
     return matches
+
+
+def _v4_depth_summary(row: dict) -> dict:
+    """Per-game row summary, separate from the per-attempt depth already recorded."""
+    depths = [int(attempt["depth"]) for attempt in row.get("attempts", ())
+              if attempt.get("team") in FROZEN_TEAMS and attempt.get("depth") is not None]
+    if not depths:
+        return {"min": None, "mean": None, "max": None}
+    return {"min": min(depths), "mean": sum(depths) / len(depths), "max": max(depths)}
 
 
 def _worker(payload) -> dict:
@@ -98,6 +107,7 @@ def _worker(payload) -> dict:
                 "tag": tag, "seed": SEED, "worker": worker,
                 "prefixPlies": len(match.opening.moves),
                 "budget": budget,
+                "depth": _v4_depth_summary(row),
             }
             stream.write(json.dumps(row, ensure_ascii=False, separators=(",", ":"),
                                     allow_nan=False) + "\n")
