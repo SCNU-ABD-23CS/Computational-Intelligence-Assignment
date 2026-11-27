@@ -17,7 +17,9 @@ from .common import (
     MIN_DEPTH, NativeEvaluator, Sample, board_tuple, d4_key, encode_board, eligible_game,
     game_samples,
 )
-from .collect import PREFIX_MAX, PREFIX_MIN, random_opening
+from .collect import (
+    NON_SELF, PREFIX_MAX, PREFIX_MIN, build_matches, random_opening, _v4_depth_summary,
+)
 from .dataset import split_families
 
 
@@ -142,6 +144,40 @@ class PipelineRegressions(unittest.TestCase):
             self.assertLessEqual(len(opening.moves), PREFIX_MAX)
             start(opening)
         self.assertEqual(len(used), 10)
+
+    def test_opponent_sides_alternate_each_cycle(self):
+        matches = build_matches(12, 10.0)
+        sides = {name: {"A": 0, "D": 0} for name in NON_SELF}
+        for match in matches:
+            if match.attacker == match.defender:
+                continue
+            if match.attacker == "Team19-v4":
+                opponent, side = match.defender, "A"
+            else:
+                opponent, side = match.attacker, "D"
+            sides[opponent][side] += 1
+        for opponent in sides:
+            self.assertEqual(sides[opponent], {"A": 1, "D": 1},
+                             f"{opponent} is not side-balanced after two cycles")
+
+    def test_shards_use_disjoint_global_openings(self):
+        first = build_matches(4, 10.0, shard_id=1)
+        second = build_matches(4, 10.0, shard_id=2)
+        self.assertFalse({match.id for match in first} & {match.id for match in second})
+        self.assertEqual([match.opening.name.split("-")[0] for match in first],
+                         ["r0000", "r0001", "r0002", "r0003"])
+        self.assertEqual([match.opening.name.split("-")[0] for match in second],
+                         ["r0004", "r0005", "r0006", "r0007"])
+
+    def test_per_game_depth_summary_uses_v4_only(self):
+        row = {"attempts": [
+            {"team": "Team19-v4", "depth": 4},
+            {"team": "Team19-v4", "depth": 6},
+            {"team": "Team19-v3", "depth": 9},
+        ]}
+        self.assertEqual(_v4_depth_summary(row), {"min": 4, "mean": 5.0, "max": 6})
+        self.assertEqual(_v4_depth_summary({"attempts": []}),
+                         {"min": None, "mean": None, "max": None})
 
     def test_split_keeps_families_whole(self):
         samples = []

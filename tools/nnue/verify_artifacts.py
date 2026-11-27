@@ -22,6 +22,7 @@ FIELDS = {
     "outcomes": np.dtype("float32"),
     "game_ids": None,
 }
+OPTIONAL_FIELDS = {"depths": np.dtype("int16")}
 ALLOWED_SOURCES = {
     "v4_search", "static_different_source", "static_different_capture_class",
     "static_different_source_fallback", "static_fallback",
@@ -48,18 +49,27 @@ def verify(tag: str, question_name: str) -> dict:
     checks = {}
     for name, data in (("train", train), ("validation", val)):
         rows = len(data["boards"])
-        checks[f"{name}_fields"] = set(data.files) == set(FIELDS)
+        expected = set(FIELDS) | ({"depths"} if "depths" in data.files else set())
+        checks[f"{name}_fields"] = set(data.files) == expected
         checks[f"{name}_shapes"] = all(
             data[key].shape == ((rows, 81) if key == "boards" else (rows,))
-            for key in FIELDS)
+            for key in expected)
         checks[f"{name}_dtypes"] = all(
-            dtype is None or data[key].dtype == dtype for key, dtype in FIELDS.items())
+            (dtype is None or data[key].dtype == dtype)
+            for key, dtype in {**FIELDS, **OPTIONAL_FIELDS}.items()
+            if key in expected)
         checks[f"{name}_board_codes"] = set(np.unique(data["boards"]).tolist()) <= {0, 1, 2, 3, 4}
         checks[f"{name}_sides"] = set(np.unique(data["sides"]).tolist()) <= {0, 1}
         checks[f"{name}_outcomes"] = set(np.unique(data["outcomes"]).tolist()) <= {0.0, 0.5, 1.0}
         checks[f"{name}_finite"] = all(bool(np.isfinite(data[key]).all())
                                        for key in ("base_evals", "deep_evals", "outcomes"))
         checks[f"{name}_game_ids"] = data["game_ids"].dtype.kind == "U"
+        checks[f"{name}_has_depths"] = "depths" not in data.files or (
+            data["depths"].dtype == np.dtype("int16")
+            and data["depths"].shape == (rows,)
+            and int(data["depths"].min()) >= 0
+            and int(data["depths"].max()) <= 128
+        )
     checks["game_ids_disjoint"] = not (set(train["game_ids"]) & set(val["game_ids"]))
     train_keys = _split_keys(train)
     val_keys = _split_keys(val)
