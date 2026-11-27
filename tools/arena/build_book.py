@@ -7,6 +7,13 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 STANDARD = "arena-standard-b2c5e0df9948-60s.jsonl"
 ROOT = (0, 5, 1, 5)
+DEFAULT_EVIDENCE_DIR = HERE / "results"
+_ALLOWED_REASONS = frozenset((
+    "king escaped to the edge",
+    "fewer than two attackers remain",
+    "no legal move",
+    "repeated position",
+))
 
 
 def flat(move):
@@ -58,34 +65,85 @@ def historical(journal):
 
 
 def screened(lines, journal):
-    groups = defaultdict(dict)
+    groups = defaultdict(list)
     for raw in journal.read_text(encoding="utf-8").splitlines():
         r = json.loads(raw)
         path = tuple(flat(m) for m in r["prefix"])
-        groups[path][r["opponent"]] = r
-    for path, opponents in groups.items():
-        if set(opponents) != {"Grandmaster-Plus", "Team19-v3"}:
+        groups[key(path)].append((path, r))
+
+    supported = {}
+    for whole_path, samples in groups.items():
+        rows = [row for _, row in samples]
+        prefix = key(whole_path[:-1])
+        existing = lines.get(prefix)
+        if any(not _safe(row) for row in rows):
+            if existing is not None and key(existing) == whole_path:
+                lines.pop(prefix)
             continue
-        rows = list(opponents.values())
-        if any(r["errors"] or r["fallbacks"] or r["winner"] == "A" or
-               r["reason"] not in ("king escaped to the edge", "fewer than two attackers remain",
-                                   "no legal move", "repeated position") for r in rows):
+        if len({row["opponent"] for row in rows}) < 2 or not any(
+            row["winner"] == "D" for row in rows
+        ):
             continue
-        if not any(r["winner"] == "D" for r in rows):
+        supported[whole_path] = samples
+
+    by_prefix = defaultdict(list)
+    for whole_path, samples in supported.items():
+        by_prefix[key(whole_path[:-1])].append((whole_path, samples))
+
+    accepted = set()
+    for prefix, candidates in by_prefix.items():
+        if len(candidates) != 1:
+            lines.pop(prefix, None)
             continue
-        chosen = lines.setdefault(key(path[:-1]), path)
-        if key(chosen) != key(path):
+        whole_path, samples = candidates[0]
+        existing = lines.get(prefix)
+        if existing is not None and key(existing) != whole_path:
+            lines.pop(prefix)
             continue
-        for r in rows:
-            if len(r["nextMoves"]) == 2 and r["winner"] == "D":
-                fourth = path + tuple(flat(m) for m in r["nextMoves"])
-                lines.setdefault(key(fourth[:-1]), fourth)
+        if existing is None:
+            lines[prefix] = min(path for path, _ in samples)
+        accepted.add(whole_path)
+
+    replies = defaultdict(lambda: defaultdict(list))
+    for parent_path, samples in groups.items():
+        for path, row in samples:
+            if len(row["nextMoves"]) != 2:
+                continue
+            extended = path + tuple(flat(move) for move in row["nextMoves"])
+            replies[key(extended[:-1])][key(extended)].append((extended, row, parent_path))
+
+    for prefix, candidates in replies.items():
+        if len(candidates) != 1:
+            lines.pop(prefix, None)
+            continue
+        whole_path, samples = next(iter(candidates.items()))
+        rows = [row for _, row, _ in samples]
+        existing = lines.get(prefix)
+        if any(not _safe(row) for row in rows):
+            if existing is not None and key(existing) == whole_path:
+                lines.pop(prefix)
+            continue
+        if (len({row["opponent"] for row in rows}) < 2
+                or not any(row["winner"] == "D" for row in rows)
+                or not any(parent in accepted for _, _, parent in samples)):
+            continue
+        if existing is not None and key(existing) != whole_path:
+            lines.pop(prefix)
+            continue
+        if existing is None:
+            lines[prefix] = min(path for path, _, _ in samples)
 
 
-def export(results, output):
+def _safe(row):
+    return (not row["errors"] and not row["fallbacks"] and row["winner"] != "A"
+            and row["reason"] in _ALLOWED_REASONS)
+
+
+def export(results, output, evidence_dir=DEFAULT_EVIDENCE_DIR):
     lines = historical(results / STANDARD)
-    screened(lines, HERE / "book_reply_trials.jsonl")
-    decisions = json.loads((HERE / "book_decisions.json").read_text())
+    screened(lines, evidence_dir / "book_reply_trials.jsonl")
+    decisions_path = evidence_dir / "book_decisions.json"
+    decisions = json.loads(decisions_path.read_text())
     for item in decisions:
         path = tuple(tuple(m) for m in item["line"])
         lines[key(path[:-1])] = path
@@ -99,6 +157,7 @@ def export(results, output):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results", type=Path, default=HERE.parents[2] / "results")
+    parser.add_argument("--evidence-dir", type=Path, default=DEFAULT_EVIDENCE_DIR)
     parser.add_argument("--output", type=Path, default=HERE.parents[1] / "Team19_book_data.py")
     args = parser.parse_args()
-    print(export(args.results, args.output), "book lines")
+    print(export(args.results, args.output, args.evidence_dir), "book lines")

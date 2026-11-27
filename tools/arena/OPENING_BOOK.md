@@ -14,22 +14,37 @@
 4. QSearch 第五手分别强制候选并让冻结 v4 搜对方反击。对方反击后再由己方应对，0407 的六秒搜索分为 −1062，3031 为 −2039，3032 为 −3001。十秒续局中 0407 分别战胜 QSearch 和 Grandmaster-Plus，3031 只战胜 QSearch。历史 60 秒原局走 0407 曾负，因此仅把 0407 放入待整盘验证的候选库。
 5. 对 v3 执守第二手，4636 和 2423 在十秒续局均赢，4636 在历史六十秒原局曾负。该点采用首着家族筛选得到的通用应手。对 v3 执攻第十一手，5856 的历史败局与十秒续局胜局相冲突，1525 在十秒续局也输，此处交回搜索。
 
+## PR #13 审查后的收录规则
+
+生成器按完整走法前缀合并 D4 等价的试验，保留同一对手的重复试局。补入防守应手至少需要两名不同对手的证据，且至少有一胜。某个第三手局面下，只要第四手出现分歧、败局、异常或回退，就不采用这组证据支持该着。不同第三手分别判断。
+
+按此规则重新生成后，38 条源路径缩减为 29 条，移除 9 条第四手推荐。当前有 225 个精确索引，仍覆盖全部十类首着，最长到 QSearch 第五手。将初版正式对局逐手回放，原先 13 次命中全部仍能给出相同走法。下方 60 秒积分属于初版；修订版尚待成员 1 盲评，比赛入口继续默认关闭开局库。
+
 ## 复现及交接
 
-在仓库根目录运行以下命令。重建历史条目需要交接包内的 `results/arena-standard-b2c5e0df9948-60s.jsonl`，默认从仓库的上一级目录读取。线上只使用导出的静态数据。筛选和对局使用墙钟限时，复跑时可因搜索完成的深度不同而出现不同结局。
+以下命令在仓库根目录执行。线上运行和单元测试只需 Git 中的文件。要重建候选库，请将交接包的标准赛日志 `arena-standard-b2c5e0df9948-60s.jsonl` 放在 `../results/`，将逐局应手证据 `book_reply_trials.jsonl` 和人工裁定 `book_decisions.json` 放在 `tools/arena/results/`。本文提到的实验 JSON、JSONL 和压缩回放都保存在该忽略目录，由成员 3 随实验资料单独交接。
 
 ```powershell
-python -m tools.arena.book_corpus --root ../results --output corpus.json
-python -m tools.arena.book_screen --budget 10 --output screen.json
-python -m tools.arena.book_screen --validate screen.json --budget 10 --output replies.jsonl
-python -m tools.arena.book_trials --case qs-attacker-ply5 --deep-seconds 6 --run --budget 10
+New-Item -ItemType Directory -Force tools/arena/results | Out-Null
 python -m tools.arena.build_book
-python -m tools.arena.compare_book --opponents qs v3 gmp gm --budget 60 --output paired60.jsonl
+```
+
+如需重新采集，以下命令使用独立的输出目录，便于对照交接时保存的原始证据。每次重跑应使用新的空目录。筛选和对局采用墙钟计时，两次搜索可能达到不同深度。
+
+```powershell
+$run = "tools/arena/results/recheck"
+New-Item -ItemType Directory $run
+python -m tools.arena.book_corpus --root ../results --output "$run/book_corpus_report.json"
+python -m tools.arena.book_screen --budget 10 --output "$run/book_screen_results.json"
+python -m tools.arena.book_screen --validate "$run/book_screen_results.json" --budget 10 --output "$run/book_reply_trials.jsonl"
+python -m tools.arena.book_trials --case qs-attacker-ply5 --deep-seconds 6 --run --budget 10 --output "$run/qs.json"
+python -m tools.arena.compare_book --opponents qs v3 gmp gm --budget 60 --output "$run/paired60.jsonl"
+python -m tools.arena.book_acceptance "$run/paired60.jsonl" "$run/acceptance.json"
 ```
 
 成员 1 可在两种玩家上显式打开同一份库做盲评。成员 2 审查在线入口、索引和两套测试。成员 4 可按回放中的 `bookEnabled`、`bookHit` 区分实验组与命中步。对照方法采用相同对手、相同开局及种子、互换攻守的设计。外部参考为 [Stockfish 测试开局库](https://github.com/official-stockfish/books)，所有本项目走法均来自课程规则下的搜索或实战。
 
-## 60 秒正式对照结果
+## 初版 60 秒正式对照结果（7fe2cbc）
 
 四个对手分别为 QSearch-PVS、Team19-v3、Grandmaster-Plus 和 Grandmaster-Numba。每个对手均从标准盘出发，开库、关库各执攻和执守一次，16 盘串行执行。双方配置各取得 8 胜，积分均为 16/16。开库组共命中 13 手，执攻首手省时中位数为 2.985 秒。开库方无超时、异常、非法着或回退。开库执攻对 QSearch 的胜局由对方超时判胜，其余七胜均在棋盘上终结。每种配置每个对手每侧只有一盘，本轮积分已达到上限。
 
@@ -38,6 +53,6 @@ python -m tools.arena.compare_book --opponents qs v3 gmp gm --budget 60 --output
 完整逐手回放为 `book_paired60.jsonl.gz`。复算积分、省时和默认开关判定：
 
 ```powershell
-python -m tools.arena.book_acceptance tools/arena/book_paired60.jsonl.gz acceptance-local.json
-python -m tools.arena.book_trials --root-finalists --run --budget 10 --output root-finalists-local.json
+python -m tools.arena.book_acceptance tools/arena/results/book_paired60.jsonl.gz tools/arena/results/acceptance-local.json
+python -m tools.arena.book_trials --root-finalists --run --budget 10 --output tools/arena/results/root-finalists-local.json
 ```
