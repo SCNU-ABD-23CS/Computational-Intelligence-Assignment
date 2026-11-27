@@ -59,6 +59,7 @@ _OPENING_MOVE_ALLOWANCE = 13
 DEFAULT_USE_BOOK = False  # The paired 60s release gate tied at 16 points each.
 # Independent opt-in: the no-argument player remains the frozen v4 engine.
 DEFAULT_USE_NNUE = False
+DEFAULT_USE_HALF_KP = False
 
 Square = tuple[int, int]
 MovePair = tuple[Square, Square]
@@ -118,7 +119,10 @@ class Player:
 
     def __init__(
         self, *, use_book: bool = DEFAULT_USE_BOOK, use_nnue: bool = DEFAULT_USE_NNUE,
+        use_halfkp: bool = DEFAULT_USE_HALF_KP,
     ):
+        if use_nnue and use_halfkp:
+            raise ValueError("Select only one residual network")
         # Loaded once here, never inside the timed methods.
         self._choose_best_move = _import_member("Team19_search", "choose_best_move")
         self._apply_move = _import_member("Team19_engine", "apply_move")
@@ -126,6 +130,7 @@ class Player:
         self._compute_hash = _import_member("Team19_engine", "compute_hash")
         self._book_enabled = bool(use_book)
         self._nnue_enabled = bool(use_nnue)
+        self._halfkp_enabled = bool(use_halfkp)
         self._choose_book_move = (
             _import_member("Team19_book", "choose_book_move") if self._book_enabled else None
         )
@@ -138,13 +143,17 @@ class Player:
         native_search = _import_member("Team19_search", "_NativeSearch")
         if native_search is not None:
             try:
-                self._native = native_search(_INITIAL_BOARD, use_nnue=self._nnue_enabled)
+                self._native = native_search(
+                    _INITIAL_BOARD, use_nnue=self._nnue_enabled, use_halfkp=self._halfkp_enabled,
+                )
             except Exception as error:
                 self.native_init_error = error
             else:
                 self.warmup_seconds = self._native.warmup_seconds
                 self._native_choice = self._native.choose
                 self._choose_best_move = self._native_choice
+        if self._halfkp_enabled and self._native is None:
+            raise RuntimeError("The requested HalfKP search could not initialize") from self.native_init_error
         # Book hits only apply to the original kernel. Tests and integrations
         # can replace _choose_best_move without inheriting book behaviour.
         self._book_search = self._choose_best_move

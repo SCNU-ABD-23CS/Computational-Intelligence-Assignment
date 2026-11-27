@@ -529,6 +529,9 @@ try:
     from Team19_nnue import (
         NNUEWork, _nnue_push, _nnue_residual, _nnue_root, make_nnue_work,
     )
+    from Team19_halfkp import (
+        HalfKPWork, _halfkp_root, halfkp_residual, make_halfkp_work, push_halfkp,
+    )
     from Team19_tactics import (
         _LANE_KEYS, _RAY, captures_screen, defender_capture_targets, escape_lines, exposed_stops, guard_releases,
         guard_release_replies, guard_reply_profile, king_turn_lanes, king_turn_replies,
@@ -615,9 +618,11 @@ class _NativeWork(NamedTuple):
     weights: np.ndarray
     piece_bonus: np.ndarray
     nnue: NNUEWork
+    halfkp: HalfKPWork | None
 
 
-def _native_work(weights, nnue: NNUEWork | None = None) -> _NativeWork:
+def _native_work(weights, nnue: NNUEWork | None = None,
+                 halfkp: HalfKPWork | None = None) -> _NativeWork:
     active_nnue = make_nnue_work(False) if nnue is None else nnue
     return _NativeWork(
         np.empty((_NATIVE_PLY_SLOTS, _MOVE_CAPACITY), dtype=np.int16),
@@ -638,6 +643,7 @@ def _native_work(weights, nnue: NNUEWork | None = None) -> _NativeWork:
         weights,
         _native_piece_bonus(weights),
         active_nnue,
+        halfkp,
     )
 
 
@@ -860,13 +866,19 @@ def _native_siege_pressure(board, king):
 @_njit(inline="always")
 def _native_score(board, attacker, attackers, defenders, king, work, siege, ply):
     work.counts[_EVALUATIONS] += 1
-    base_eval = _native_evaluate(board, attacker, attackers, defenders, king, work.weights,
-                                 work.queue, work.seen, _NEAR, _EDGE, work.piece_bonus)
-    # The frozen siege gate deliberately uses base_eval, never an NNUE-adjusted score.
-    if (siege and base_eval >= _SIEGE_SCORE_THRESHOLD
-            and defenders <= 6 and attackers >= defenders + 4):
-        base_eval += _native_siege_pressure(board, king)
-    value = base_eval + _nnue_residual(attacker, ply, work.nnue)
+    base = _native_evaluate(board, attacker, attackers, defenders, king, work.weights,
+                            work.queue, work.seen, _NEAR, _EDGE, work.piece_bonus)
+    # The frozen siege gate always uses the unadjusted static score.
+    siege_active = (siege and base >= _SIEGE_SCORE_THRESHOLD
+                    and defenders <= 6 and attackers >= defenders + 4)
+    if work.halfkp is None:
+        if siege_active:
+            base += _native_siege_pressure(board, king)
+        value = base + _nnue_residual(attacker, ply, work.nnue)
+    else:
+        value = base + halfkp_residual(attacker, ply, work.halfkp)
+        if siege_active:
+            value += _native_siege_pressure(board, king)
     return value if attacker else -value
 
 
@@ -997,7 +1009,11 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         else:
             # The child row is written in place. _pop needs no NNUE undo because
             # the next sibling overwrites this same row before it is evaluated.
-            _nnue_push(board, move, ply, captured_at, captured_pieces, captured, work.nnue)
+            if work.halfkp is None:
+                _nnue_push(board, move, ply, captured_at, captured_pieces, captured, work.nnue)
+            else:
+                push_halfkp(board, source, target, k, ply, captured_at, captured_pieces,
+                            captured, work.halfkp)
             narrow = not first
             while True:
                 child, _ = _native_visit(
@@ -1077,13 +1093,18 @@ class _NativeTelemetry:
 class _NativeSearch:
     """A player's per-game transposition table and independently timed search."""
 
-    def __init__(self, initial_board, weights=None, *, use_nnue=False, nnue_work=None):
+    def __init__(self, initial_board, weights=None, *, use_nnue=False, nnue_work=None,
+                 use_halfkp=False, halfkp_work=None):
         if not _NATIVE_AVAILABLE:
             raise ImportError("The compiled rules or evaluator are unavailable")
         from Team19_weights import native_weights
 
         active_nnue = make_nnue_work(use_nnue) if nnue_work is None else nnue_work
-        self.work = _native_work(native_weights(weights), active_nnue)
+        if use_halfkp and halfkp_work is None:
+            halfkp_work = make_halfkp_work(_NATIVE_PLY_SLOTS)
+        if active_nnue.enabled and halfkp_work is not None:
+            raise ValueError("Select only one residual network")
+        self.work = _native_work(native_weights(weights), active_nnue, halfkp_work)
         self.nnue_enabled = bool(active_nnue.enabled)
         self.legacy_weights = tuple(_PYTHON_DEFAULT_WEIGHTS)
         self.time_window = None
@@ -1119,7 +1140,10 @@ class _NativeSearch:
 
     def _iteration(self, flat, side, state, depth, qleft, alpha, beta, deadline, played, lmr,
                    repetition_score=0, siege=False):
-        _nnue_root(flat, self.work.nnue)
+        if self.work.halfkp is None:
+            _nnue_root(flat, self.work.nnue)
+        else:
+            _halfkp_root(flat, state[4], self.work.halfkp)
         return _native_visit(flat, side, *state, depth, qleft, 0, alpha, beta,
                              deadline, played, self.work, lmr, repetition_score, siege)
 
