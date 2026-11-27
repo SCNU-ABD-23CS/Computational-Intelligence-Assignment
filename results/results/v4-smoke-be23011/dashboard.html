@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablut 2 队全循环实验 · JC4004</title>
+<style>:root {
+  color-scheme: light;
+  font: 100%/1.48 "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  color: #1d3032;
+  background: #f2f5f3;
+  --ink: #1d3032;
+  --muted: #4c6465;
+  --rule: #d9e4e0;
+  --paper: #fff;
+  --accent: #0d6b58;
+  --accent-light: #eaf5ed;
+  --rail: #e7edef;
+  --attack: #365f9c;
+  --defence: #167968;
+}
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body, h1, h2, h3, p, ul { margin: 0; }
+button { font: inherit; cursor: pointer; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--attack); outline-offset: 3px; }
+.shell { width: min(1120px, calc(100% - 48px)); margin-inline: auto; }
+.page-header { background: var(--paper); border-bottom: 1px solid var(--rule); }
+.header-layout { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-block: 23px; }
+.course { font-size: .88rem; color: var(--accent); font-weight: 700; letter-spacing: .045em; }
+h1 { font-size: clamp(1.9rem, 4vw, 2.65rem); line-height: 1.1; letter-spacing: -.035em; }
+.print-button { padding: 8px 14px; border: 1px solid var(--rule); border-radius: 8px;
+  color: var(--accent); background: var(--paper); font-weight: 700; white-space: nowrap; }
+.print-button:hover, .stage-link:hover { background: var(--accent-light); }
+.tabs { display: flex; gap: 7px; padding-block: 12px 4px; overflow-x: auto; }
+.tabs button { padding: 8px 13px; color: var(--muted); background: transparent;
+  border: 1px solid transparent; border-radius: 8px; white-space: nowrap; }
+.tabs button:hover { background: #e8efeb; }
+.tabs button[aria-selected=true] { color: white; background: var(--accent); font-weight: 700; }
+.tabs button:focus-visible { outline-offset: -3px; }
+.report-panel { display: grid; gap: 14px; padding-block: 16px 34px; }
+.panel-title { font-size: 1.36rem; line-height: 1.3; }
+.metrics, .two-column, .reliability { display: grid; gap: 12px; }
+.metrics { grid-template-columns: repeat(var(--metric-columns, 4), minmax(0, 1fr)); }
+.two-column, .reliability { grid-template-columns: repeat(var(--stage-columns, 2), minmax(0, 1fr)); }
+.metric, .chart { min-width: 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 11px; }
+.metric { padding: 12px 14px; }
+.metric p { font-weight: 700; font-size: .88rem; }
+.metric strong { display: block; margin-block: 3px; font-size: clamp(1.5rem, 3vw, 2.03rem);
+  line-height: 1.2; font-variant-numeric: tabular-nums; }
+.metric small, .note { color: var(--muted); font-size: .85rem; }
+.metric.featured, .stage-link:hover { border-color: #b9dacb; background: var(--accent-light); }
+.metric.featured strong, .metric.good strong, .stage-link strong { color: var(--accent); }
+.metric.warning { background: #fff0eb; }
+.metric.warning strong { color: #a23939; }
+.chart { padding: 15px 17px; }
+.chart h2 { font-size: 1.19rem; line-height: 1.25; margin-block-end: 7px; }
+.chart .note { margin-block-end: 8px; }
+.stage-link, .side-card { min-width: 0; border: 1px solid var(--rule); border-radius: 8px;
+  padding: 10px 12px; color: var(--ink); background: #f7faf8; }
+.stage-link { text-align: start; display: grid; align-content: start; gap: 3px; }
+.stage-link strong { font-size: 1.42rem; }
+.stage-link span { color: var(--muted); font-size: .84rem; }
+.side-card h3 { font-size: .94rem; margin-block-end: 6px; }
+.side-card .note { margin-block: 7px 0; }
+.side-measure { display: grid; grid-template-columns: auto 4.2rem minmax(0, 1fr) 5.8rem; gap: 7px;
+  align-items: center; padding-block: 3px; font-size: .87rem; }
+.side-measure small { color: var(--muted); text-align: right; }
+.bar { display: block; inline-size: 100%; block-size: 8px; border-radius: 4px; overflow: hidden; }
+.rail { fill: var(--rail); }
+.fill { fill: var(--series, var(--accent)); }
+.attack { --series: var(--attack); }
+.defence { --series: var(--defence); }
+.stage-rules { display: flex; flex-wrap: wrap; gap: 5px; list-style: none; padding: 0; }
+.stage-rules li { background: #e7efeb; border-radius: 5px; color: #314a4a; padding: 4px 8px; font-size: .84rem; }
+.round-status { color: var(--muted); font-size: .92rem; }
+.command { display: block; padding: 8px 10px; border-radius: 6px; background: #eff4f1;
+  font: .86rem/1.5 "Cascadia Mono", Consolas, monospace; overflow-wrap: anywhere; }
+.scroll-table { overflow-x: auto; min-width: 0; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .87rem; }
+th, td { padding: 7px 8px; text-align: right; border-block-end: 1px solid #eaf0ee;
+  font-variant-numeric: tabular-nums; }
+thead th { background: #f0f5f2; color: var(--muted); white-space: nowrap; }
+tbody tr:last-child > * { border-block-end: 0; }
+.standings { min-width: 656px; }
+.standings .team-column, .standings th[scope="row"], .stability th:first-child { text-align: start; }
+.highlight > * { background: var(--accent-light); }
+.highlight th { color: var(--accent); }
+.heatmap { table-layout: fixed; min-width: var(--matrix-width, 555px); border-spacing: 3px; }
+.heatmap th, .heatmap td { text-align: center; border: 0; border-radius: 5px; }
+.matrix-cell { min-height: 40px; }
+.matrix-cell b, .matrix-cell small { display: block; }
+.matrix-cell small { color: #334a4a; }
+.empty-cell { color: var(--muted); background: #eef1f1; }
+.role-scroll { text-align: center; }
+.role-chart { display: block; width: min(100%, var(--plot-width, 900px)); min-width: var(--plot-min, 580px);
+  height: auto; margin-inline: auto; }
+.grid-line { stroke: #dce6e5; stroke-width: 1; }
+.axis-muted { font-size: 12px; fill: var(--muted); }
+.axis-name, .bar-label { font-size: 14px; fill: var(--ink); font-weight: 700; }
+.legend { display: flex; gap: 14px; color: var(--muted); font-size: .87rem; }
+.legend span::before { content: ""; background: var(--series); display: inline-block;
+  width: 10px; height: 10px; margin-inline-end: 5px; border-radius: 2px; }
+.reliability { align-items: start; }
+.ending-bar { width: 100%; height: 14px; display: block; border-radius: 5px; }
+.ending-key { list-style: none; padding: 6px 0 0; }
+.ending-key li { padding: 3px 0; display: grid; grid-template-columns: 10px 1fr auto; gap: 7px;
+  align-items: center; color: var(--muted); font-size: .86rem; }
+.ending-key i { background: var(--key); width: 10px; height: 10px; border-radius: 2px; }
+.stability { min-width: 400px; }
+@media (max-width: 750px) {
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reliability { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 560px) {
+  .shell { width: calc(100% - 22px); }
+  .header-layout { padding-block: 16px; }
+  .tabs button { padding-inline: 5px; font-size: .88rem; }
+  .chart { padding: 12px 10px; }
+  .two-column { grid-template-columns: minmax(0, 1fr); }
+}
+@page { size: A4 landscape; margin: 10mm; }
+@media print {
+  html, body {
+    background: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .shell { width: 100%; }
+  .tabs, .print-button { display: none; }
+  .chart, .metrics { break-inside: avoid; }
+  .scroll-table { overflow: visible; }
+}
+</style>
+</head>
+<body>
+<header class="page-header"><div class="shell header-layout">
+<div><p class="course">JC4004 · Tablut</p><h1>2 队全循环实验</h1></div>
+<button type="button" class="print-button" id="print-report">打印视图</button>
+</div></header>
+<main class="shell">
+<nav class="tabs" role="tablist" aria-label="联赛赛段"><button type="button" id="tab-overview" role="tab" aria-controls="panel-overview" aria-selected="true" tabindex="0">总览</button><button type="button" id="tab-v4-smoke-78d93d3f1db5-0p5s" role="tab" aria-controls="panel-v4-smoke-78d93d3f1db5-0p5s" aria-selected="false" tabindex="-1">0.5 秒 2 队全循环</button></nav>
+<section id="panel-overview" class="report-panel" role="tabpanel" aria-labelledby="tab-overview" tabindex="0"><h2 class="panel-title">总览</h2><div class="metrics" style="--metric-columns:3"><article class="metric "><p>已完成对局</p><strong>2/2</strong><small>0.5 秒 2/2</small></article><article class="metric featured"><p>v4 · 0.5 秒得分率</p><strong>50.0%</strong><small>2/4 分 · 2 局</small></article><article class="metric good"><p>裁判判负</p><strong>0</strong><small>超时、非法步与裁判异常</small></article></div><section class="chart"><h2>赛段速览</h2><div class="two-column" style="--stage-columns:1"><button class="stage-link" type="button" data-stage-tab="tab-v4-smoke-78d93d3f1db5-0p5s" aria-controls="panel-v4-smoke-78d93d3f1db5-0p5s"><b>0.5 秒 2 队全循环</b><strong>2/2</strong><span>已完成</span></button></div></section><section class="chart"><h2>Team19-v4 攻守与稳定性</h2><div class="two-column" style="--stage-columns:1"><article class="side-card"><h3>0.5 秒档</h3><div class="side-measure"><span>执攻</span><b>0.0%</b><svg class="bar attack" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="执攻 · 0.0% · 0/2 分"><title>执攻 · 0.0% · 0/2 分</title><rect class="rail" width="100" height="10"/><rect class="fill" width="0.0000" height="10"/></svg><small>0/2 分</small></div><div class="side-measure"><span>执守</span><b>100.0%</b><svg class="bar defence" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="执守 · 100.0% · 2/2 分"><title>执守 · 100.0% · 2/2 分</title><rect class="rail" width="100" height="10"/><rect class="fill" width="100.0000" height="10"/></svg><small>2/2 分</small></div><p class="note">出战 2 局 · 0 超时 · 0 非法 · 0 异常 · 0 兜底</p></article></div></section></section><section id="panel-v4-smoke-78d93d3f1db5-0p5s" class="report-panel" role="tabpanel" aria-labelledby="tab-v4-smoke-78d93d3f1db5-0p5s" tabindex="0" hidden><h2 class="panel-title">0.5 秒 2 队全循环</h2><ul class="stage-rules"><li>每方整局 0.5 秒</li><li>前 1 个固定开局 × 换边</li><li>2 队全循环 · 1 组各 2 局</li><li>胜 2 / 和 1 / 负 0</li></ul><p class="round-status">已完成 2/2 局</p><section class="chart"><h2>2 队排行榜</h2><p class="note">模拟课程分 = 30 × 本队积分 ÷ 榜首积分。Elo 同时估计执攻方偏差。</p><div class="scroll-table"><table class="standings"><thead><tr><th>排名</th><th class="team-column">队伍</th><th>已赛</th><th>积分</th><th>胜–和–负</th><th>得分率</th><th>Elo</th><th>课程模拟分 / 30</th></tr></thead><tbody><tr class="highlight"><td>1</td><th scope="row">Team19-v3</th><td>2</td><td>2</td><td>1–0–1</td><td>50.0%</td><td>1500.0</td><td>30.00</td></tr><tr class="highlight"><td>1</td><th scope="row">Team19-v4</th><td>2</td><td>2</td><td>1–0–1</td><td>50.0%</td><td>1500.0</td><td>30.00</td></tr></tbody></table></div></section><section class="chart"><h2>2×2 交手得分率</h2><p class="note">从行方阅读。得分率为（胜 + 0.5 × 和）÷ 已赛场次。每组打满 2 局，第二行显示胜–和–负。</p><div class="scroll-table"><table class="heatmap" style="--matrix-width:300px"><thead><tr><th scope="col">行方</th><th scope="col" title="Team19-v4">v4</th><th scope="col" title="Team19-v3">v3</th></tr></thead><tbody><tr><th scope="row" title="Team19-v4">v4</th><td class="matrix-cell empty-cell">—</td><td class="matrix-cell" title="Team19-v4 对 Team19-v3 · 2 局 · 得分率 50.0% · 胜–和–负 1–0–1 · 积分 2:2" style="background:#f0f3f3"><b>50.0%</b><small>1–0–1</small></td></tr><tr><th scope="row" title="Team19-v3">v3</th><td class="matrix-cell" title="Team19-v3 对 Team19-v4 · 2 局 · 得分率 50.0% · 胜–和–负 1–0–1 · 积分 2:2" style="background:#f0f3f3"><b>50.0%</b><small>1–0–1</small></td><td class="matrix-cell empty-cell">—</td></tr></tbody></table></div></section><section class="chart"><h2>执攻与执守</h2><div class="legend"><span class="attack">执攻</span><span class="defence">执守</span></div><div class="scroll-table role-scroll"><svg class="role-chart" style="--plot-width:350px;--plot-min:300px" viewBox="0 0 350 212" role="img" aria-label="执攻与执守"><title>执攻与执守得分率</title><line class="grid-line" x1="62" x2="338" y1="175.0" y2="175.0"/><text class="axis-muted" x="53" y="179.0" text-anchor="end">0%</text><line class="grid-line" x1="62" x2="338" y1="139.25" y2="139.25"/><text class="axis-muted" x="53" y="143.25" text-anchor="end">25%</text><line class="grid-line" x1="62" x2="338" y1="103.5" y2="103.5"/><text class="axis-muted" x="53" y="107.5" text-anchor="end">50%</text><line class="grid-line" x1="62" x2="338" y1="67.75" y2="67.75"/><text class="axis-muted" x="53" y="71.75" text-anchor="end">75%</text><line class="grid-line" x1="62" x2="338" y1="32.0" y2="32.0"/><text class="axis-muted" x="53" y="36.0" text-anchor="end">100%</text><text class="axis-name" x="121.0" y="201" text-anchor="middle">v4</text><g class="attack" aria-label="Team19-v4 · 执攻 · 0.0% · 0/2 分"><title>Team19-v4 · 执攻 · 0.0% · 0/2 分</title><rect class="fill" x="84.0" y="175.00" width="29" height="0.00" rx="3"/><text class="bar-label" x="98.5" y="168.00" text-anchor="middle">0.0%</text></g><g class="defence" aria-label="Team19-v4 · 执守 · 100.0% · 2/2 分"><title>Team19-v4 · 执守 · 100.0% · 2/2 分</title><rect class="fill" x="129.0" y="32.00" width="29" height="143.00" rx="3"/><text class="bar-label" x="143.5" y="25.00" text-anchor="middle">100.0%</text></g><text class="axis-name" x="239.0" y="201" text-anchor="middle">v3</text><g class="attack" aria-label="Team19-v3 · 执攻 · 0.0% · 0/2 分"><title>Team19-v3 · 执攻 · 0.0% · 0/2 分</title><rect class="fill" x="202.0" y="175.00" width="29" height="0.00" rx="3"/><text class="bar-label" x="216.5" y="168.00" text-anchor="middle">0.0%</text></g><g class="defence" aria-label="Team19-v3 · 执守 · 100.0% · 2/2 分"><title>Team19-v3 · 执守 · 100.0% · 2/2 分</title><rect class="fill" x="247.0" y="32.00" width="29" height="143.00" rx="3"/><text class="bar-label" x="261.5" y="25.00" text-anchor="middle">100.0%</text></g></svg></div></section><section class="chart"><h2>终局与稳定性</h2><p class="note">终局按局计。异常含裁判判负和搜索内部错误，兜底按手计。</p><div class="reliability"><div><svg class="ending-bar" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="终局原因占比"><rect x="0.0000" width="100.0000" height="10" fill="#167968"><title>国王逃生 · 2 局</title></rect></svg><ul class="ending-key"><li><i style="--key:#167968"></i><span>国王逃生</span><b>2 局</b></li></ul></div><div class="scroll-table"><table class="stability"><thead><tr><th>队伍</th><th>超时</th><th>非法步</th><th>异常</th><th>兜底</th></tr></thead><tbody><tr class="highlight"><th scope="row">Team19-v4</th><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr class="highlight"><th scope="row">Team19-v3</th><td>0</td><td>0</td><td>0</td><td>0</td></tr></tbody></table></div></div></section></section>
+</main>
+<script>const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+
+function showStage(nextTab) {
+  for (const tab of tabs) {
+    const selected = tab === nextTab;
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+    document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
+  }
+}
+
+for (const tab of tabs) {
+  tab.addEventListener('click', () => showStage(tab));
+  tab.addEventListener('keydown', (event) => {
+    const index = tabs.indexOf(tab);
+    let next;
+    switch (event.key) {
+      case 'ArrowLeft':
+        next = tabs[(index + tabs.length - 1) % tabs.length];
+        break;
+      case 'ArrowRight':
+        next = tabs[(index + 1) % tabs.length];
+        break;
+      case 'Home':
+        next = tabs[0];
+        break;
+      case 'End':
+        next = tabs[tabs.length - 1];
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    showStage(next);
+    next.focus();
+  });
+}
+
+for (const card of document.querySelectorAll('[data-stage-tab]')) {
+  const tab = document.getElementById(card.dataset.stageTab);
+  card.addEventListener('click', () => {
+    showStage(tab);
+    tab.focus();
+  });
+}
+
+document.getElementById('print-report').addEventListener('click', () => window.print());
+</script>
+</body>
+</html>
