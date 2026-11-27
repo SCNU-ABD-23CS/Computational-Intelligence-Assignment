@@ -137,8 +137,8 @@ class PipelineRegressions(unittest.TestCase):
         evaluator = NativeEvaluator()
         flat, state = _native_position(board)
         work = _native_work(native_weights(None))
-        attacker = float(_native_score(flat, True, state[2], state[3], state[4], work, False))
-        defender = float(_native_score(flat, False, state[2], state[3], state[4], work, False))
+        attacker = float(_native_score(flat, True, state[2], state[3], state[4], work, False, 0))
+        defender = float(_native_score(flat, False, state[2], state[3], state[4], work, False, 0))
         self.assertAlmostEqual(evaluator.evaluate(board, "A"), attacker, places=4)
         self.assertAlmostEqual(evaluator.evaluate(board, "D"), -defender, places=4)
 
