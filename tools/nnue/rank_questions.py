@@ -148,6 +148,18 @@ def evaluate(weights_path: Path, questions_path: Path) -> dict:
     one_by_unit = np.mean(hidden >= 1.0, axis=0)
     diagnostics = {
         "mean_abs_residual": float(np.mean(np.abs(bounded))),
+        "residual_values": {
+            "minimum": float(np.min(bounded)),
+            "maximum": float(np.max(bounded)),
+            "mean": float(np.mean(bounded)),
+            "negative_candidates": int(np.sum(bounded < 0.0)),
+            "zero_candidates": int(np.sum(bounded == 0.0)),
+            "positive_candidates": int(np.sum(bounded > 0.0)),
+            "near_bound_candidates": int(np.sum(
+                np.abs(bounded) >= 0.98 * float(weights["residual_clip"])
+            )),
+            "near_bound_threshold": 0.98 * float(weights["residual_clip"]),
+        },
         "residual_range_per_question": {
             "median": float(np.median(residual_ranges)),
             "p90": float(np.percentile(residual_ranges, 90)),

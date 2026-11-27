@@ -119,6 +119,21 @@ def load_weights(path: str | Path) -> dict[str, np.ndarray]:
     return weights
 
 
+def scale_tanh_weights(weights: dict[str, np.ndarray], scale: float) -> dict[str, np.ndarray]:
+    """Scale a tanh residual outside tanh while preserving its preactivation."""
+    if not 0.0 < scale <= 1.0:
+        raise ValueError("development residual scale must be in (0,1]")
+    if str(weights["output_activation"]) != "tanh":
+        raise ValueError("residual scaling requires tanh weights")
+    scaled = {key: np.array(value, copy=True) for key, value in weights.items()}
+    scaled["head_weight"] = (weights["head_weight"] * scale).astype(np.float32)
+    scaled["head_bias"] = (weights["head_bias"] * scale).astype(np.float32)
+    scaled["residual_clip"] = np.array(
+        float(weights["residual_clip"]) * scale, dtype=np.float32,
+    )
+    return scaled
+
+
 def numpy_hidden(weights: dict[str, np.ndarray], boards: np.ndarray) -> np.ndarray:
     """Expose clipped hidden activations for non-training saturation diagnostics."""
     features = encode_boards(boards)

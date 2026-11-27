@@ -72,7 +72,7 @@ class ResidualNNUE(nn.Module):
         nn.init.normal_(self.heads.weight, mean=0.0, std=1e-3)
         nn.init.zeros_(self.heads.bias)
 
-    def forward(self, features, sides, base_evals):
+    def forward(self, features, sides, base_evals, return_preactivation=False):
         hidden = torch.clamp(self.hidden(features), 0.0, 1.0)
         both_heads = self.heads(hidden)
         selected = both_heads.gather(1, sides.reshape(-1, 1)).squeeze(1)
@@ -82,6 +82,8 @@ class ResidualNNUE(nn.Module):
         prediction = torch.sigmoid(
             (base_evals + residual) / self.eval_scale + self.side_calib[sides]
         )
+        if return_preactivation:
+            return prediction, residual, selected
         return prediction, residual
 
 
@@ -93,6 +95,18 @@ def batches(arrays: dict[str, np.ndarray], indices: list[int], batch_size: int):
         base = torch.from_numpy(arrays["base_evals"][selected].astype(np.float32))
         target = torch.from_numpy(arrays["targets"][selected].astype(np.float32))
         yield features, sides, base, target
+
+
+def training_objective(model: ResidualNNUE, features, sides, base, target,
+                       center_weight: float):
+    """SmoothL1 plus an optional dimensionless pre-tanh zero-center penalty."""
+    prediction, _, selected = model(
+        features, sides, base, return_preactivation=True,
+    )
+    smooth_l1 = F.smooth_l1_loss(prediction, target)
+    selected_mse = torch.mean(selected ** 2)
+    objective = smooth_l1 + center_weight * selected_mse
+    return objective, smooth_l1, selected_mse
 
 
 @torch.no_grad()
@@ -132,6 +146,58 @@ def calibration_report(model: ResidualNNUE) -> dict:
     }
 
 
+def pretrain_side_calibration(model: ResidualNNUE, arrays: dict[str, np.ndarray],
+                              args: argparse.Namespace, generator: torch.Generator,
+                              history_path: Path) -> list[dict]:
+    """Absorb global D/A offsets before any hidden or output-head update."""
+    parameters = list(model.parameters())
+    original_requires_grad = [parameter.requires_grad for parameter in parameters]
+    for parameter in parameters:
+        parameter.requires_grad_(False)
+    model.side_calib.requires_grad_(True)
+    optimizer = torch.optim.AdamW(
+        [model.side_calib], lr=args.calibration_learning_rate, weight_decay=0.0,
+    )
+    records = []
+    history_path.write_text("", encoding="utf-8")
+    try:
+        for epoch in range(1, args.calibration_epochs + 1):
+            model.train()
+            order = torch.randperm(len(arrays["boards"]), generator=generator).tolist()
+            smooth_l1_total = 0.0
+            for features, sides, base, target in batches(
+                    arrays, order, args.batch_size):
+                optimizer.zero_grad(set_to_none=True)
+                prediction, _ = model(features, sides, base)
+                loss = F.smooth_l1_loss(prediction, target)
+                if not torch.isfinite(loss):
+                    raise FloatingPointError(f"Non-finite calibration loss at epoch {epoch}")
+                loss.backward()
+                optimizer.step()
+                smooth_l1_total += float(loss.detach()) * len(target)
+            record = {
+                "epoch": epoch,
+                "stage": "side_calibration_only",
+                "train_smooth_l1": smooth_l1_total / len(order),
+                "optimized_parameters": ["side_calib"],
+                "frozen_parameters": ["hidden", "heads"],
+                "side_calibration": calibration_report(model),
+            }
+            records.append(record)
+            with history_path.open("a", encoding="utf-8", newline="\n") as stream:
+                stream.write(json.dumps(record, allow_nan=False) + "\n")
+            calibration = record["side_calibration"]
+            print(
+                f"calib_epoch={epoch:02d} train={record['train_smooth_l1']:.7f} "
+                f"calibD={calibration['score_equivalent']['D']:.1f} "
+                f"calibA={calibration['score_equivalent']['A']:.1f}", flush=True,
+            )
+    finally:
+        for parameter, requires_grad in zip(parameters, original_requires_grad):
+            parameter.requires_grad_(requires_grad)
+    return records
+
+
 def export_weights(model: ResidualNNUE, path: Path) -> None:
     arrays = {
         "hidden_weight": model.hidden.weight.detach().cpu().numpy().astype(np.float32),
@@ -168,6 +234,10 @@ def _mask_report(arrays: dict[str, np.ndarray], mask: np.ndarray) -> dict:
 def train(args: argparse.Namespace) -> dict:
     if args.epochs <= 0 or args.batch_size <= 0 or args.patience < 0:
         raise ValueError("epochs/batch_size must be positive and patience non-negative")
+    if args.calibration_epochs < 0 or args.calibration_learning_rate <= 0:
+        raise ValueError("calibration epochs must be non-negative and its learning rate positive")
+    if args.center_weight < 0:
+        raise ValueError("center weight must be non-negative")
     if args.learning_rate <= 0 or args.weight_decay < 0:
         raise ValueError("Invalid AdamW settings")
     torch.manual_seed(args.seed)
@@ -205,10 +275,15 @@ def train(args: argparse.Namespace) -> dict:
     output.mkdir(parents=True, exist_ok=True)
 
     model = ResidualNNUE(args.residual_clip, args.eval_scale)
+    generator = torch.Generator().manual_seed(args.seed)
+    calibration_history_path = output / "calibration_history.jsonl"
+    calibration_records = pretrain_side_calibration(
+        model, train_arrays, args, generator, calibration_history_path,
+    )
+    post_calibration = calibration_report(model)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay,
     )
-    generator = torch.Generator().manual_seed(args.seed)
     best_state = copy.deepcopy(model.state_dict())
     best_nll = math.inf
     best_epoch = 0
@@ -219,22 +294,32 @@ def train(args: argparse.Namespace) -> dict:
     for epoch in range(1, args.epochs + 1):
         model.train()
         order = torch.randperm(len(train_arrays["boards"]), generator=generator).tolist()
+        train_objective = 0.0
         train_loss = 0.0
+        train_selected_mse = 0.0
         for features, sides, base, target in batches(
                 train_arrays, order, args.batch_size):
             optimizer.zero_grad(set_to_none=True)
-            prediction, _ = model(features, sides, base)
-            loss = F.smooth_l1_loss(prediction, target)
-            if not torch.isfinite(loss):
+            objective, smooth_l1, selected_mse = training_objective(
+                model, features, sides, base, target, args.center_weight,
+            )
+            if not torch.isfinite(objective):
                 raise FloatingPointError(f"Non-finite loss at epoch {epoch}")
-            loss.backward()
+            objective.backward()
             optimizer.step()
-            train_loss += float(loss.detach()) * len(target)
+            rows = len(target)
+            train_objective += float(objective.detach()) * rows
+            train_loss += float(smooth_l1.detach()) * rows
+            train_selected_mse += float(selected_mse.detach()) * rows
         metrics = evaluate(model, validation)
         calibration = calibration_report(model)
         record = {
             "epoch": epoch,
+            "stage": "joint_residual_and_calibration",
+            "train_objective": train_objective / len(order),
             "train_smooth_l1": train_loss / len(order),
+            "train_selected_mse": train_selected_mse / len(order),
+            "train_center_penalty": args.center_weight * train_selected_mse / len(order),
             "validation": metrics,
             "side_calibration": calibration,
             "selected_by": "validation_nll_only",
@@ -243,6 +328,8 @@ def train(args: argparse.Namespace) -> dict:
             stream.write(json.dumps(record, allow_nan=False) + "\n")
         print(
             f"epoch={epoch:02d} train={record['train_smooth_l1']:.7f} "
+            f"objective={record['train_objective']:.7f} "
+            f"pre_mse={record['train_selected_mse']:.5f} "
             f"val={metrics['smooth_l1']:.7f} nll={metrics['nll']:.7f} "
             f"mean|residual|={metrics['mean_abs_residual']:.3f} "
             f"calibD={calibration['score_equivalent']['D']:.1f} "
@@ -285,6 +372,24 @@ def train(args: argparse.Namespace) -> dict:
         "residual_clip": args.residual_clip,
         "eval_scale": args.eval_scale,
         "side_calibration": calibration_report(model),
+        "pre_calibration": {
+            "epochs": args.calibration_epochs,
+            "completed_epochs": len(calibration_records),
+            "learning_rate": args.calibration_learning_rate,
+            "weight_decay": 0.0,
+            "objective": "SmoothL1",
+            "optimized_parameters": ["side_calib"],
+            "frozen_parameters": ["hidden", "heads"],
+            "history": calibration_history_path.name,
+            "calibration_after_stage": post_calibration,
+        },
+        "center_loss": {
+            "weight": args.center_weight,
+            "formula": "center_weight * mean(selected_pre_tanh ** 2)",
+            "training_only": True,
+            "validation_metrics_changed": False,
+            "exported": False,
+        },
         "outcome_weight": args.outcome_weight,
         "loss": "SmoothL1",
         "optimizer": {"name": "AdamW", "learning_rate": args.learning_rate,
@@ -335,11 +440,14 @@ def train(args: argparse.Namespace) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", default="volume1200")
-    parser.add_argument("--run-id", default="c750-k6000-l0p5-tanh-sidecalib-seed20261126")
+    parser.add_argument("--run-id", default="c750-k6000-l0p5-tanh-precalib5-center1e3-seed20261126")
     parser.add_argument("--output")
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--seed", type=int, default=20261126)
     parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--calibration-epochs", type=int, default=5)
+    parser.add_argument("--calibration-learning-rate", type=float, default=0.05)
+    parser.add_argument("--center-weight", type=float, default=1e-3)
     parser.add_argument("--batch-size", type=int, default=1024)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--weight-decay", type=float, default=1e-4)
