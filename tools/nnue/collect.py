@@ -257,6 +257,14 @@ def merge_shards(tag: str, shard_count: int, games_per_shard: int, budget: float
     summary["shard_count"] = shard_count
     summary["shard_files"] = len(paths)
     summary["shard_games_per_shard"] = games_per_shard
+    unique = {row["id"]: row for row in rows}
+    if len(unique) != len(rows):
+        raise ValueError("Duplicate game ids across shard journals")
+    ordered = sorted(unique.values(), key=lambda row: row["id"])
+    with (root / "games.jsonl").open("w", encoding="utf-8", newline="\n") as stream:
+        for game in ordered:
+            stream.write(json.dumps(game, ensure_ascii=False, separators=(",", ":"),
+                                    allow_nan=False) + "\n")
     write_json(root / "collection_summary.json", summary)
     return summary
 

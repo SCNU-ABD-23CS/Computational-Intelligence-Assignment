@@ -27,6 +27,9 @@ WHITELIST = frozenset({
 })
 FROZEN_TEAMS = frozenset({"Team19-v4", "Team19-New"})
 MIN_BUDGET = 10.0
+# Our own collection runs at 6s and is gated by measured filtered depth >= 4.5;
+# the 10s floor only applies to reviewed historical arena logs in WHITELIST.
+MIN_COLLECT_BUDGET = 5.0
 MIN_DEPTH = 4
 MIN_PLY = 9
 MATE_THRESHOLD = 90_000.0
@@ -118,7 +121,8 @@ def position_hash(position: dict) -> int:
 
 
 def eligible_game(game: dict, source: str) -> tuple[bool, str]:
-    if float(game.get("budget", 0.0)) < MIN_BUDGET:
+    floor = MIN_BUDGET if source in WHITELIST else MIN_COLLECT_BUDGET
+    if float(game.get("budget", 0.0)) < floor:
         return False, "budget"
     if source in WHITELIST:
         return True, "reviewed_whitelist"

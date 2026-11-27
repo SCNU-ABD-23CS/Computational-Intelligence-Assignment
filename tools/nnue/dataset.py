@@ -15,7 +15,8 @@ import Team19_engine as engine
 from Team19_weights import DEFAULT_WEIGHTS
 
 from .common import (
-    FROZEN_TEAMS, MATE_THRESHOLD, MIN_BUDGET, MIN_DEPTH, MIN_PLY, NNUE_RESULTS,
+    FROZEN_TEAMS, MATE_THRESHOLD, MIN_BUDGET, MIN_COLLECT_BUDGET, MIN_DEPTH,
+    MIN_PLY, NNUE_RESULTS,
     Sample, WHITELIST, d4_key, encode_board, eligible_game, game_samples, read_jsonl,
     stable_digest, write_json,
 )
@@ -168,7 +169,9 @@ def export_locked(tag: str, lock_from: str) -> dict:
             "siege_bonus_included": False,
         },
         "filters": {
-            "teams": sorted(FROZEN_TEAMS), "min_budget_seconds": MIN_BUDGET,
+            "teams": sorted(FROZEN_TEAMS),
+            "min_budget_seconds": {"whitelist": MIN_BUDGET,
+                                   "collection": MIN_COLLECT_BUDGET},
             "min_completed_depth": MIN_DEPTH, "min_ply": MIN_PLY,
             "previous_move_capture_excluded": True, "whitelist": sorted(WHITELIST),
         },
@@ -378,7 +381,9 @@ def export(tag: str, fraction: float) -> dict:
             "siege_threshold_owner": "Team19_search._native_score",
         },
         "filters": {
-            "teams": sorted(FROZEN_TEAMS), "min_budget_seconds": MIN_BUDGET,
+            "teams": sorted(FROZEN_TEAMS),
+            "min_budget_seconds": {"whitelist": MIN_BUDGET,
+                                   "collection": MIN_COLLECT_BUDGET},
             "min_completed_depth": MIN_DEPTH, "min_ply": MIN_PLY,
             "previous_move_capture_excluded": True, "whitelist": sorted(WHITELIST),
         },

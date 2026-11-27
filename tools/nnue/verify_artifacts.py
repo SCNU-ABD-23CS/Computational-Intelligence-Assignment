@@ -47,6 +47,7 @@ def verify(tag: str, question_name: str) -> dict:
     train = np.load(directory / "team19_nnue_train.npz")
     val = np.load(directory / "team19_nnue_val.npz")
     checks = {}
+    unknown_depths = {}
     for name, data in (("train", train), ("validation", val)):
         rows = len(data["boards"])
         expected = set(FIELDS) | ({"depths"} if "depths" in data.files else set())
@@ -64,12 +65,17 @@ def verify(tag: str, question_name: str) -> dict:
         checks[f"{name}_finite"] = all(bool(np.isfinite(data[key]).all())
                                        for key in ("base_evals", "deep_evals", "outcomes"))
         checks[f"{name}_game_ids"] = data["game_ids"].dtype.kind == "U"
-        checks[f"{name}_has_depths"] = "depths" not in data.files or (
-            data["depths"].dtype == np.dtype("int16")
-            and data["depths"].shape == (rows,)
-            and int(data["depths"].min()) >= 0
-            and int(data["depths"].max()) <= 128
+        # -1 marks rows whose root depth is unknown (legacy volume1200 rows may
+        # legitimately carry it); anything below -1 or above 128 is corrupt.
+        depths = data["depths"] if "depths" in data.files else None
+        checks[f"{name}_has_depths"] = depths is None or (
+            depths.dtype == np.dtype("int16")
+            and depths.shape == (rows,)
+            and int(depths.min()) >= -1
+            and int(depths.max()) <= 128
         )
+        if depths is not None:
+            unknown_depths[name] = int((depths == -1).sum())
     checks["game_ids_disjoint"] = not (set(train["game_ids"]) & set(val["game_ids"]))
     train_keys = _split_keys(train)
     val_keys = _split_keys(val)
@@ -109,6 +115,7 @@ def verify(tag: str, question_name: str) -> dict:
         "question_file": question_name,
         "checks": checks,
         "rows": {"train": len(train["boards"]), "validation": len(val["boards"])},
+        "depth_unknown": unknown_depths,
         "d4_keys": {"train": len(train_keys), "validation": len(val_keys)},
         "questions": len(questions["questions"]),
         "sha256": {
