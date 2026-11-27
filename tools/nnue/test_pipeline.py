@@ -109,6 +109,12 @@ class PipelineRegressions(unittest.TestCase):
         self.assertTrue(eligible_game(game, "arena-9451a7e4dcf4-10s.jsonl")[0])
         game["budget"] = 1.0
         self.assertFalse(eligible_game(game, "arena-9451a7e4dcf4-10s.jsonl")[0])
+        game["budget"] = 6.0
+        game["started"] = "2026-11-26T00:00:00+00:00"
+        self.assertTrue(eligible_game(game, "collection:volume_halfkp")[0])
+        self.assertFalse(eligible_game(game, "arena-9451a7e4dcf4-10s.jsonl")[0])
+        game["budget"] = 4.0
+        self.assertFalse(eligible_game(game, "collection:volume_halfkp")[0])
 
     def test_d4_key_is_symmetric_and_side_sensitive(self):
         game, _ = synthetic_game()
@@ -178,6 +184,31 @@ class PipelineRegressions(unittest.TestCase):
         self.assertEqual(_v4_depth_summary(row), {"min": 4, "mean": 5.0, "max": 6})
         self.assertEqual(_v4_depth_summary({"attempts": []}),
                          {"min": None, "mean": None, "max": None})
+
+    def test_merge_shards_writes_sorted_games_jsonl(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+
+        from .collect import merge_shards
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "tag"
+            for shard, ids in ((1, ["6-r0001-p2", "6-r0000-p2"]), (2, ["6-r1000-p2"])):
+                directory = root / f"shard_{shard:02d}"
+                directory.mkdir(parents=True)
+                with (directory / "worker_0.jsonl").open("w", encoding="utf-8") as stream:
+                    for game_id in ids:
+                        stream.write(json.dumps({"id": game_id}) + "\n")
+            with patch("tools.nnue.collect.NNUE_RESULTS", Path(tmp)), \
+                    patch("tools.nnue.collect._summary_from_rows",
+                          return_value={"complete": True}):
+                summary = merge_shards("tag", 2, 2, 6.0)
+            written = [json.loads(line)["id"] for line in
+                       (root / "games.jsonl").read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(written, ["6-r0000-p2", "6-r0001-p2", "6-r1000-p2"])
+            self.assertEqual(summary["shard_files"], 2)
 
     def test_split_keeps_families_whole(self):
         samples = []
