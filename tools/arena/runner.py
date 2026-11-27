@@ -44,6 +44,8 @@ class Team:
 
 _V2_MODULE = ".snapshots.v_3edc85c.Team19"
 _V2_SEARCH = ".snapshots.v_3edc85c.Team19_search"
+_SHARE_TEAM = "Tablut-Share"
+_SHARE_SOURCE = HERE / "local_opponents" / "tablut_share"
 
 TEAMS = {
     "Team19-New": Team("Team19", "new", "历史赛段入口，运行当前根目录版本", "Team19_search"),
@@ -70,8 +72,11 @@ TEAMS.update({
     "Team19-v4": Team("Team19", "v4", "逃线战术搜索与关键回合加时", "Team19_search"),
     "Grandmaster-Plus": Team(".bots.grandmaster_plus", "gmp", "Grandmaster 原估值，增强搜索和时钟"),
 })
-TEAM_NAMES = {label.casefold(): name for name, team in TEAMS.items() for label in (name, team.alias)}
 TEAM_PRESETS = {"top6": TOP6_TEAMS, "all": tuple(name for name in TEAMS if name != "Team19-New")}
+# A local opponent is opt-in so its presence does not change published schedules.
+if (_SHARE_SOURCE / "TeamXX.py").is_file():
+    TEAMS[_SHARE_TEAM] = Team(".bots.tablut_share", "share", "本地分享版，固定最高 D4 的 Alpha-Beta")
+TEAM_NAMES = {label.casefold(): name for name, team in TEAMS.items() for label in (name, team.alias)}
 
 
 @dataclass(frozen=True)
@@ -222,6 +227,8 @@ def _player(name, seed, starting, side, factory=None):
             player._last_is_attacker = side
             if not side:
                 player._opening_replies.add(tuple(tuple(row) for row in starting.positions[1]["board"]))
+    elif hasattr(player, "seed_positions"):
+        player.seed_positions(starting.positions, side)
     elif hasattr(player, "seed_history"):
         player.seed_history(starting.referee.past_positions)
     return player
@@ -312,6 +319,8 @@ def _fingerprint(stage: str, matches: list[Match], extra=None) -> str:
         paths.append(HERE / "bots" / "numba_rules.py")
     if "Grandmaster-Plus" in teams:
         paths.append(HERE / "bots" / "grandmaster_numba.py")
+    if _SHARE_TEAM in teams:
+        paths.extend(_SHARE_SOURCE.rglob("*.py"))
     payload = [SCHEMA, stage, [asdict(match) for match in matches],
                sorted({hashlib.sha256(file.read_bytes()).hexdigest() for file in paths})]
     if extra is not None:
