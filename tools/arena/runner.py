@@ -40,6 +40,8 @@ class Team:
     alias: str
     description: str
     search: str | None = None
+    use_book: bool = False
+    use_nnue: bool = False
 
 
 _V2_MODULE = ".snapshots.v_3edc85c.Team19"
@@ -68,6 +70,10 @@ TEAMS.update({
     "Team19-v3": Team(".snapshots.v_be23011.Team19", "v3", "分值置换表版快照 be23011",
                       ".snapshots.v_be23011.Team19_search"),
     "Team19-v4": Team("Team19", "v4", "逃线战术搜索与关键回合加时", "Team19_search"),
+    "Team19-NNUE": Team("Team19", "nnue", "v4＋有界残差 NNUE，不开局库", "Team19_search",
+                         use_nnue=True),
+    "Team19-Book-NNUE": Team("Team19", "booknnue", "开局库＋有界残差 NNUE", "Team19_search",
+                              use_book=True, use_nnue=True),
     "Grandmaster-Plus": Team(".bots.grandmaster_plus", "gmp", "Grandmaster 原估值，增强搜索和时钟"),
 })
 TEAM_NAMES = {label.casefold(): name for name, team in TEAMS.items() for label in (name, team.alias)}
@@ -209,7 +215,10 @@ def _player(name, seed, starting, side, factory=None):
     entrant = TEAMS[name]
     if factory is None:
         module = import_module(entrant.module, __package__)
-        player = module.Player() if entrant.search else module.Player(seed=seed)
+        if entrant.search and (entrant.use_book or entrant.use_nnue):
+            player = module.Player(use_book=entrant.use_book, use_nnue=entrant.use_nnue)
+        else:
+            player = module.Player() if entrant.search else module.Player(seed=seed)
     else:
         player = factory()
     reset = getattr(player, "reset_game", None)

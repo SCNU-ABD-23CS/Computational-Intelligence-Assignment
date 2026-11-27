@@ -57,6 +57,8 @@ _OPENING_MOVE_ALLOWANCE = 13
 # Change this one constant to disable the optional static book after an arena
 # gate, while retaining the public no-argument Player entry point.
 DEFAULT_USE_BOOK = False  # The paired 60s release gate tied at 16 points each.
+# Independent opt-in: the no-argument player remains the frozen v4 engine.
+DEFAULT_USE_NNUE = False
 
 Square = tuple[int, int]
 MovePair = tuple[Square, Square]
@@ -114,13 +116,16 @@ def _load_weights() -> list[float] | None:
 class Player:
     """Referee-facing player: one instance may be reused across games."""
 
-    def __init__(self, *, use_book: bool = DEFAULT_USE_BOOK):
+    def __init__(
+        self, *, use_book: bool = DEFAULT_USE_BOOK, use_nnue: bool = DEFAULT_USE_NNUE,
+    ):
         # Loaded once here, never inside the timed methods.
         self._choose_best_move = _import_member("Team19_search", "choose_best_move")
         self._apply_move = _import_member("Team19_engine", "apply_move")
         self._check_winner = _import_member("Team19_engine", "check_winner")
         self._compute_hash = _import_member("Team19_engine", "compute_hash")
         self._book_enabled = bool(use_book)
+        self._nnue_enabled = bool(use_nnue)
         self._choose_book_move = (
             _import_member("Team19_book", "choose_book_move") if self._book_enabled else None
         )
@@ -133,7 +138,7 @@ class Player:
         native_search = _import_member("Team19_search", "_NativeSearch")
         if native_search is not None:
             try:
-                self._native = native_search(_INITIAL_BOARD)
+                self._native = native_search(_INITIAL_BOARD, use_nnue=self._nnue_enabled)
             except Exception as error:
                 self.native_init_error = error
             else:
