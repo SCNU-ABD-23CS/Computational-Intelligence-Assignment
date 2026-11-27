@@ -526,6 +526,9 @@ try:
         DEFAULT_WEIGHTS as _PYTHON_DEFAULT_WEIGHTS,
         _NATIVE_DISTANCE, _NATIVE_EDGE_DISTANCE, _native_evaluate, _native_piece_bonus,
     )
+    from Team19_nnue import (
+        NNUEWork, _nnue_push, _nnue_residual, _nnue_root, make_nnue_work,
+    )
     from Team19_tactics import (
         _LANE_KEYS, _RAY, captures_screen, defender_capture_targets, escape_lines, exposed_stops, guard_releases,
         guard_release_replies, guard_reply_profile, king_turn_lanes, king_turn_replies,
@@ -611,9 +614,11 @@ class _NativeWork(NamedTuple):
     counts: np.ndarray
     weights: np.ndarray
     piece_bonus: np.ndarray
+    nnue: NNUEWork
 
 
-def _native_work(weights) -> _NativeWork:
+def _native_work(weights, nnue: NNUEWork | None = None) -> _NativeWork:
+    active_nnue = make_nnue_work(False) if nnue is None else nnue
     return _NativeWork(
         np.empty((_NATIVE_PLY_SLOTS, _MOVE_CAPACITY), dtype=np.int16),
         np.empty((_NATIVE_PLY_SLOTS, _MOVE_CAPACITY), dtype=np.int32),
@@ -632,6 +637,7 @@ def _native_work(weights) -> _NativeWork:
         np.zeros(9, dtype=np.int64),
         weights,
         _native_piece_bonus(weights),
+        active_nnue,
     )
 
 
@@ -852,13 +858,15 @@ def _native_siege_pressure(board, king):
 
 
 @_njit(inline="always")
-def _native_score(board, attacker, attackers, defenders, king, work, siege):
+def _native_score(board, attacker, attackers, defenders, king, work, siege, ply):
     work.counts[_EVALUATIONS] += 1
-    value = _native_evaluate(board, attacker, attackers, defenders, king, work.weights,
-                             work.queue, work.seen, _NEAR, _EDGE, work.piece_bonus)
-    if (siege and value >= _SIEGE_SCORE_THRESHOLD
+    base_eval = _native_evaluate(board, attacker, attackers, defenders, king, work.weights,
+                                 work.queue, work.seen, _NEAR, _EDGE, work.piece_bonus)
+    # The frozen siege gate deliberately uses base_eval, never an NNUE-adjusted score.
+    if (siege and base_eval >= _SIEGE_SCORE_THRESHOLD
             and defenders <= 6 and attackers >= defenders + 4):
-        value += _native_siege_pressure(board, king)
+        base_eval += _native_siege_pressure(board, king)
+    value = base_eval + _nnue_residual(attacker, ply, work.nnue)
     return value if attacker else -value
 
 
@@ -918,7 +926,7 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
         if not quiet_escape_reply and not _has_legal(board, attacker):
             return 0, -1
         if qleft <= 0:
-            return _native_score(board, attacker, attackers, defenders, king, work, siege), -1
+            return _native_score(board, attacker, attackers, defenders, king, work, siege, ply), -1
 
     best, best_move = -2 * _MATE, -1
     can_reduce = lmr and depth >= 3 and ply > 0 and beta == alpha + 1
@@ -926,7 +934,7 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
     if not danger and (not normal or can_reduce):
         danger = _immediate_win(board, not attacker, attackers, king, work.scratch) >= 0
     if not normal and not danger:
-        best = _native_score(board, attacker, attackers, defenders, king, work, siege)
+        best = _native_score(board, attacker, attackers, defenders, king, work, siege, ply)
         if best >= beta:
             counts[_CUTOFFS] += 1
             return best, -1
@@ -987,6 +995,9 @@ def _native_visit(board, attacker, hash_a, hash_d, attackers, defenders, king,
             else:
                 child = _MATE - ply - 2
         else:
+            # The child row is written in place. _pop needs no NNUE undo because
+            # the next sibling overwrites this same row before it is evaluated.
+            _nnue_push(board, move, ply, captured_at, captured_pieces, captured, work.nnue)
             narrow = not first
             while True:
                 child, _ = _native_visit(
@@ -1066,12 +1077,14 @@ class _NativeTelemetry:
 class _NativeSearch:
     """A player's per-game transposition table and independently timed search."""
 
-    def __init__(self, initial_board, weights=None):
+    def __init__(self, initial_board, weights=None, *, use_nnue=False, nnue_work=None):
         if not _NATIVE_AVAILABLE:
             raise ImportError("The compiled rules or evaluator are unavailable")
         from Team19_weights import native_weights
 
-        self.work = _native_work(native_weights(weights))
+        active_nnue = make_nnue_work(use_nnue) if nnue_work is None else nnue_work
+        self.work = _native_work(native_weights(weights), active_nnue)
+        self.nnue_enabled = bool(active_nnue.enabled)
         self.legacy_weights = tuple(_PYTHON_DEFAULT_WEIGHTS)
         self.time_window = None
         self.last_search = None
@@ -1106,6 +1119,7 @@ class _NativeSearch:
 
     def _iteration(self, flat, side, state, depth, qleft, alpha, beta, deadline, played, lmr,
                    repetition_score=0, siege=False):
+        _nnue_root(flat, self.work.nnue)
         return _native_visit(flat, side, *state, depth, qleft, 0, alpha, beta,
                              deadline, played, self.work, lmr, repetition_score, siege)
 
