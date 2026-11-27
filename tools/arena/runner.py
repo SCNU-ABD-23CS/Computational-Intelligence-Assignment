@@ -42,6 +42,7 @@ class Team:
     search: str | None = None
     use_book: bool = False
     use_nnue: bool = False
+    use_halfkp: bool = False
 
 
 _V2_MODULE = ".snapshots.v_3edc85c.Team19"
@@ -78,6 +79,10 @@ TEAMS.update({
                         use_book=True),
     "Team19-Book-NNUE": Team("Team19", "booknnue", "开局库＋有界残差 NNUE", "Team19_search",
                               use_book=True, use_nnue=True),
+    "Team19-HalfKP": Team("Team19", "halfkp", "v4＋HalfKP Stage 3 残差", "Team19_search",
+                          use_halfkp=True),
+    "Team19-Book-HalfKP": Team("Team19", "bookhalfkp", "开局库＋HalfKP Stage 3 残差",
+                               "Team19_search", use_book=True, use_halfkp=True),
     "Grandmaster-Plus": Team(".bots.grandmaster_plus", "gmp", "Grandmaster 原估值，增强搜索和时钟"),
 })
 TEAM_PRESETS = {"top6": TOP6_TEAMS, "all": tuple(name for name in TEAMS if name != "Team19-New")}
@@ -222,7 +227,9 @@ def _player(name, seed, starting, side, factory=None):
     entrant = TEAMS[name]
     if factory is None:
         module = import_module(entrant.module, __package__)
-        if entrant.search and (entrant.use_book or entrant.use_nnue):
+        if entrant.use_halfkp:
+            player = module.Player(use_book=entrant.use_book, use_halfkp=True)
+        elif entrant.search and (entrant.use_book or entrant.use_nnue):
             player = module.Player(use_book=entrant.use_book, use_nnue=entrant.use_nnue)
         else:
             player = module.Player() if entrant.search else module.Player(seed=seed)
