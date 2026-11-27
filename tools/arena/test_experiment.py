@@ -68,13 +68,17 @@ class ExperimentTests(unittest.TestCase):
         play.assert_not_called()
 
     def test_standard_opening_dry_run_schedules_all_unique_teams_in_both_budgets(self):
+        # The roster grows as modules land, so derive the expected size instead of
+        # pinning a team count that every new arm would invalidate.
+        roster = [name for name in runner.TEAMS if name != "Team19-New"]
+        games = len(roster) * (len(roster) - 1) // 2 * 2
         with (patch.object(runner, "load_suite") as suite,
               patch.object(runner, "run_match") as play):
             output = self.cli("--teams", "all", "--standard-opening", "--budgets", "60,10", "--dry-run")
-        self.assertIn("14 队全循环 · 标准初始盘面 × 换边（预走 0 手） · 每组 2 局", output)
-        self.assertIn("60 秒档 · 182 局", output)
-        self.assertIn("10 秒档 · 182 局", output)
-        self.assertIn("合计 364 局", output)
+        self.assertIn(f"{len(roster)} 队全循环 · 标准初始盘面 × 换边（预走 0 手） · 每组 2 局", output)
+        self.assertIn(f"60 秒档 · {games} 局", output)
+        self.assertIn(f"10 秒档 · {games} 局", output)
+        self.assertIn(f"合计 {2 * games} 局", output)
         self.assertNotIn("Team19-New", output)
         self.assertFalse(self.results.exists())
         suite.assert_not_called()

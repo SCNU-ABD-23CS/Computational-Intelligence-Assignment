@@ -74,6 +74,8 @@ TEAMS.update({
     "Team19-v4": Team("Team19", "v4", "逃线战术搜索与关键回合加时", "Team19_search"),
     "Team19-NNUE": Team("Team19", "nnue", "v4＋有界残差 NNUE，不开局库", "Team19_search",
                          use_nnue=True),
+    "Team19-Book": Team("Team19", "book", "v4＋开局库，不开 NNUE", "Team19_search",
+                        use_book=True),
     "Team19-Book-NNUE": Team("Team19", "booknnue", "开局库＋有界残差 NNUE", "Team19_search",
                               use_book=True, use_nnue=True),
     "Grandmaster-Plus": Team(".bots.grandmaster_plus", "gmp", "Grandmaster 原估值，增强搜索和时钟"),
