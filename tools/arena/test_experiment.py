@@ -40,7 +40,7 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(runner._select_teams(" Top6, GRANDMASTER-NUMBA "), TOP6_TEAMS)
         self.assertEqual(runner._select_teams("v2, QSearch-PVS, bFs"),
                          ("Team19-v2", "QSearch-PVS", "BFS-Strategist"))
-        all_teams = tuple(name for name in runner.TEAMS if name != "Team19-New")
+        all_teams = tuple(name for name in runner.TEAMS if name not in ("Team19-New", runner._SHARE_TEAM))
         self.assertEqual(runner.TEAMS["Team19-New"].module, runner.TEAMS["Team19-v4"].module)
         self.assertEqual(runner._select_teams("ALL"), all_teams)
         self.assertEqual(runner._select_teams("ALL,new"), all_teams)
