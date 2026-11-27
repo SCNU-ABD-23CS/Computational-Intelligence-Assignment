@@ -54,6 +54,9 @@ _CRITICAL_MOVE_LIMIT = 4.25
 _MIN_MOVES_LEFT = 12
 _MOVES_PER_PIECE = 1.5
 _OPENING_MOVE_ALLOWANCE = 13
+# Change this one constant to disable the optional static book after an arena
+# gate, while retaining the public no-argument Player entry point.
+DEFAULT_USE_BOOK = False  # The paired 60s release gate tied at 16 points each.
 
 Square = tuple[int, int]
 MovePair = tuple[Square, Square]
@@ -111,12 +114,16 @@ def _load_weights() -> list[float] | None:
 class Player:
     """Referee-facing player: one instance may be reused across games."""
 
-    def __init__(self):
+    def __init__(self, *, use_book: bool = DEFAULT_USE_BOOK):
         # Loaded once here, never inside the timed methods.
         self._choose_best_move = _import_member("Team19_search", "choose_best_move")
         self._apply_move = _import_member("Team19_engine", "apply_move")
         self._check_winner = _import_member("Team19_engine", "check_winner")
         self._compute_hash = _import_member("Team19_engine", "compute_hash")
+        self._book_enabled = bool(use_book)
+        self._choose_book_move = (
+            _import_member("Team19_book", "choose_book_move") if self._book_enabled else None
+        )
 
         self.weights = _load_weights()
         self._native = None
@@ -133,6 +140,9 @@ class Player:
                 self.warmup_seconds = self._native.warmup_seconds
                 self._native_choice = self._native.choose
                 self._choose_best_move = self._native_choice
+        # Book hits only apply to the original kernel. Tests and integrations
+        # can replace _choose_best_move without inheriting book behaviour.
+        self._book_search = self._choose_best_move
         self.reset_game()
 
     def reset_game(self) -> None:
@@ -147,6 +157,7 @@ class Player:
         # Last exception that forced a fallback move, kept for debugging.
         self.last_error: Exception | None = None
         self.last_search = None
+        self.last_book_hit = False
         if self._native is not None:
             self._native.reset_game()
 
@@ -162,6 +173,7 @@ class Player:
         """Return a move for a playable position and charge the actual time."""
         started = time.perf_counter()
         self.last_search = None
+        self.last_book_hit = False
         position = [list(row) for row in board]
         native = False
         try:
@@ -215,7 +227,22 @@ class Player:
             self._record_opponent_position(position, is_attacker)
 
         chosen = None
-        if search is not None and (native or time.perf_counter() < deadline):
+        if (
+            self._book_enabled
+            and self._choose_book_move is not None
+            and search is self._book_search
+        ):
+            try:
+                book_result = self._choose_book_move(
+                    position, is_attacker, self.history, legal,
+                )
+            except Exception:
+                book_result = None
+            candidate = self._as_pair(book_result)
+            if candidate in legal:
+                chosen = candidate
+                self.last_book_hit = True
+        if chosen is None and search is not None and (native or time.perf_counter() < deadline):
             if native:
                 self._native.time_window = (deadline, started + self._hard_step_budget(step_budget))
             try:
