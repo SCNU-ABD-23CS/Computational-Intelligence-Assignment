@@ -18,7 +18,7 @@ from .common import (
     game_samples,
 )
 from .collect import (
-    OPPONENTS, PREFIX_MAX, PREFIX_MIN, build_matches, random_opening, _v4_depth_summary,
+    NON_SELF, PREFIX_MAX, PREFIX_MIN, build_matches, random_opening, _v4_depth_summary,
 )
 from .dataset import split_families
 
@@ -146,8 +146,8 @@ class PipelineRegressions(unittest.TestCase):
         self.assertEqual(len(used), 10)
 
     def test_opponent_sides_alternate_each_cycle(self):
-        matches = build_matches(16, 10.0)
-        sides = {name: {"A": 0, "D": 0} for name in OPPONENTS if name != "Team19-v4"}
+        matches = build_matches(12, 10.0)
+        sides = {name: {"A": 0, "D": 0} for name in NON_SELF}
         for match in matches:
             if match.attacker == match.defender:
                 continue
@@ -157,8 +157,17 @@ class PipelineRegressions(unittest.TestCase):
                 opponent, side = match.attacker, "D"
             sides[opponent][side] += 1
         for opponent in sides:
-            self.assertEqual(sides[opponent], {"A": 2, "D": 2},
-                             f"{opponent} is not side-balanced after four cycles")
+            self.assertEqual(sides[opponent], {"A": 1, "D": 1},
+                             f"{opponent} is not side-balanced after two cycles")
+
+    def test_shards_use_disjoint_global_openings(self):
+        first = build_matches(4, 10.0, shard_id=1)
+        second = build_matches(4, 10.0, shard_id=2)
+        self.assertFalse({match.id for match in first} & {match.id for match in second})
+        self.assertEqual([match.opening.name.split("-")[0] for match in first],
+                         ["r0000", "r0001", "r0002", "r0003"])
+        self.assertEqual([match.opening.name.split("-")[0] for match in second],
+                         ["r0004", "r0005", "r0006", "r0007"])
 
     def test_per_game_depth_summary_uses_v4_only(self):
         row = {"attempts": [
